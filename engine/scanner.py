@@ -71,7 +71,7 @@ def detect_signals(config: DomainConfig) -> List[Signal]:
     all_signals = []
 
     # Process categories in batches to avoid output truncation
-    batch_size = 3
+    batch_size = 2
     for i in range(0, len(config.categories), batch_size):
         batch_categories = config.categories[i:i + batch_size]
 
@@ -82,7 +82,7 @@ def detect_signals(config: DomainConfig) -> List[Signal]:
         )
 
         try:
-            results = chat_json(batch_prompt, max_tokens=8192)
+            results = chat_json(batch_prompt, max_tokens=16384)
             all_signals.extend(_parse_signals(results, config))
         except Exception as e:
             import streamlit as st
