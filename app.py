@@ -65,6 +65,10 @@ if scan_clicked:
         st.write("Fetching news from RSS feeds...")
         from engine.scanner import detect_signals
         from engine.scorer import score_signals
+        from engine.news import fetch_articles
+
+        articles = fetch_articles(config)
+        st.write(f"Fetched {len(articles)} articles from feeds.")
 
         new_signals = detect_signals(config)
         st.write(f"Detected {len(new_signals)} signals. Scoring...")
