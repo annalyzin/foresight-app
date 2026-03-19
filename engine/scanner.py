@@ -85,7 +85,8 @@ def detect_signals(config: DomainConfig) -> List[Signal]:
             results = chat_json(batch_prompt, max_tokens=8192)
             all_signals.extend(_parse_signals(results, config))
         except Exception as e:
-            print(f"Warning: batch {batch_categories} failed: {e}")
+            import streamlit as st
+            st.warning(f"Batch {batch_categories} failed: {e}")
             continue
 
     return all_signals
