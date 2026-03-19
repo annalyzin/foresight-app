@@ -45,7 +45,8 @@ with st.sidebar:
                     display = "Google News"
             elif "reddit.com" in domain:
                 parts = feed_url.rstrip("/").split("/")
-                sub = parts[parts.index("r") + 1] if "r" in parts else "reddit"
+                r_idx = parts.index("r") if "r" in parts else -1
+                sub = parts[r_idx + 1] if r_idx >= 0 and r_idx + 1 < len(parts) else "reddit"
                 display = f"Reddit: r/{sub}"
             elif "hnrss.org" in domain:
                 if "q=" in feed_url:

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List
 
 from pydantic import BaseModel, Field
@@ -27,4 +27,4 @@ class Signal(BaseModel):
     source_url: str = ""
     source_quote: str = ""
     source_articles: List[SourceArticle] = Field(default_factory=list)
-    timestamp: datetime = Field(default_factory=datetime.utcnow)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))

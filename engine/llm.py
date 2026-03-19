@@ -36,6 +36,8 @@ def chat(prompt: str, system: str = "You are a helpful policy analyst.", max_tok
         temperature=0.3,
         max_tokens=max_tokens,
     )
+    if not response.choices:
+        raise ValueError("LLM returned response with no choices")
     return response.choices[0].message.content
 
 

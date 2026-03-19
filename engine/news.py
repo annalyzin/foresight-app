@@ -1,6 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+import re
+import calendar
+from datetime import datetime, timedelta, timezone
+from urllib.parse import urlparse
 from typing import Dict, List
 
 import feedparser
@@ -13,8 +16,7 @@ def _parse_date(entry) -> datetime | None:
         parsed = getattr(entry, attr, None)
         if parsed:
             try:
-                from time import mktime
-                return datetime.fromtimestamp(mktime(parsed))
+                return datetime.fromtimestamp(calendar.timegm(parsed), tz=timezone.utc)
             except Exception:
                 continue
     return None
@@ -22,7 +24,7 @@ def _parse_date(entry) -> datetime | None:
 
 def fetch_articles(config: DomainConfig, days: int = 7) -> List[Dict]:
     """Fetch recent articles from all RSS feeds for a domain."""
-    cutoff = datetime.utcnow() - timedelta(days=days)
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     articles = []
     seen_titles = set()
 
@@ -49,7 +51,7 @@ def fetch_articles(config: DomainConfig, days: int = 7) -> List[Dict]:
                     "description": entry.get("summary", entry.get("description", ""))[:500],
                     "link": entry.get("link", ""),
                     "published": pub_date.isoformat() if pub_date else "",
-                    "source": feed_url.split("/")[2] if "/" in feed_url else feed_url,
+                    "source": urlparse(feed_url).netloc or feed_url,
                 })
         except Exception:
             # Skip failed feeds silently
@@ -70,7 +72,6 @@ def format_articles_for_llm(articles: List[Dict]) -> str:
             lines.append(f"   URL: {a['link']}")
         if a.get("description"):
             # Strip HTML tags from description
-            import re
             desc = re.sub(r"<[^>]+>", "", a["description"])
             lines.append(f"   {desc[:200]}")
         lines.append("")

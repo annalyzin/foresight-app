@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import random
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 from data.models import Signal, SourceArticle
@@ -645,7 +645,7 @@ _SG_MANPOWER_SEEDS = [
 
 def _build_signals(seeds, domain: str) -> List[Signal]:
     """Convert seed tuples into Signal objects with distributed timestamps."""
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     signals = []
     for entry in seeds:
         (topic, title, categories, description, month_offset,
@@ -681,7 +681,7 @@ def _build_signals(seeds, domain: str) -> List[Signal]:
     return signals
 
 
-def seed_if_empty(domain_name: str, categories: List[str]):
+def seed_if_empty(domain_name: str):
     """Seed signals for a domain if none exist."""
     existing = load_signals(domain_name)
     if existing:

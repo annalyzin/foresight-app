@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 import json
+import logging
+import os
+import tempfile
 from datetime import datetime
 from pathlib import Path
 from typing import List, Set
@@ -30,17 +33,31 @@ def load_signals(domain: str) -> List[Signal]:
     path = _signals_path(domain)
     if not path.exists():
         return []
-    with open(path) as f:
-        data = json.load(f)
-    return [Signal(**item) for item in data]
+    try:
+        with open(path) as f:
+            data = json.load(f)
+    except json.JSONDecodeError:
+        logging.warning("Corrupted signals file %s — returning empty list", path)
+        return []
+    try:
+        return [Signal(**item) for item in data]
+    except Exception:
+        logging.warning("Invalid signal data in %s — returning empty list", path)
+        return []
 
 
 def save_signals(domain: str, signals: List[Signal]):
     _ensure_dir()
     path = _signals_path(domain)
     data = [s.model_dump() for s in signals]
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2, default=_serialize)
+    fd, tmp = tempfile.mkstemp(dir=SIGNALS_DIR, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w") as f:
+            json.dump(data, f, indent=2, default=_serialize)
+        os.replace(tmp, str(path))
+    except BaseException:
+        os.unlink(tmp)
+        raise
 
 
 def append_signals(domain: str, new_signals: List[Signal]):

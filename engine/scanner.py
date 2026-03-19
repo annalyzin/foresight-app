@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from typing import List
 
 from config.base import DomainConfig
@@ -62,12 +63,6 @@ def detect_signals(config: DomainConfig) -> List[Signal]:
     else:
         topics_str = "(No previous topics — you are starting fresh)"
 
-    prompt = config.detection_prompt.format(
-        categories=", ".join(config.categories),
-        existing_topics=topics_str,
-        articles=articles_text,
-    )
-
     all_signals = []
 
     # Process categories in batches to avoid output truncation
@@ -85,8 +80,7 @@ def detect_signals(config: DomainConfig) -> List[Signal]:
             results = chat_json(batch_prompt, max_tokens=16384)
             all_signals.extend(_parse_signals(results, config))
         except Exception as e:
-            import streamlit as st
-            st.warning(f"Batch {batch_categories} failed: {e}")
+            logging.warning("Batch %s failed: %s", batch_categories, e)
             continue
 
     return all_signals
