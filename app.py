@@ -7,11 +7,11 @@ from config import DOMAINS
 from data.store import append_signals, load_signals
 from data.seed import seed_if_empty
 
-st.set_page_config(page_title="Foresight", page_icon="📡", layout="wide")
+st.set_page_config(page_title="TrendMill", page_icon="📡", layout="wide")
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
-    st.title("📡 Foresight")
+    st.title("📡 TrendMill")
     st.caption("Weak Signal Detection Dashboard")
 
     domain_name = st.selectbox("Domain", list(DOMAINS.keys()))
