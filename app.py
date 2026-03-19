@@ -5,7 +5,6 @@ from datetime import datetime
 
 from config import DOMAINS
 from data.store import append_signals, load_signals
-from data.seed import seed_if_empty
 
 st.set_page_config(page_title="TrendMill", page_icon="📡", layout="wide")
 
@@ -59,9 +58,6 @@ with st.sidebar:
             st.markdown(f"- {display}")
         except Exception:
             st.markdown(f"- {feed_url}")
-
-# ── Seed data if empty ───────────────────────────────────────────────────────
-seed_if_empty(domain_name, config.categories)
 
 # ── Run scan ─────────────────────────────────────────────────────────────────
 if scan_clicked:
