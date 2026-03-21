@@ -75,7 +75,15 @@ if scan_clicked:
         progress_bar = st.progress(0)
         batch_errors = []
 
-        def _on_batch_progress(batch_index, total_batches, batch_categories, error):
+        def _on_batch_start(batch_index, total_batches, batch_categories):
+            pct = batch_index / total_batches
+            progress_bar.progress(
+                pct,
+                text=f"Batch {batch_index + 1}/{total_batches}: "
+                     f"{', '.join(batch_categories)}...",
+            )
+
+        def _on_batch_end(batch_index, total_batches, batch_categories, error):
             pct = (batch_index + 1) / total_batches
             progress_bar.progress(pct, text=f"Batch {batch_index + 1}/{total_batches}")
             if error:
@@ -89,7 +97,11 @@ if scan_clicked:
                     f"({', '.join(batch_categories)})"
                 )
 
-        new_signals = detect_signals(config, on_progress=_on_batch_progress)
+        new_signals = detect_signals(
+            config,
+            on_batch_start=_on_batch_start,
+            on_batch_end=_on_batch_end,
+        )
         progress_bar.empty()
 
         if not new_signals and batch_errors:

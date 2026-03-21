@@ -54,13 +54,16 @@ def _parse_signals(results, config: DomainConfig) -> List[Signal]:
 
 def detect_signals(
     config: DomainConfig,
-    on_progress: Optional[Callable[[int, int, List[str], Optional[str]], None]] = None,
+    on_batch_start: Optional[Callable[[int, int, List[str]], None]] = None,
+    on_batch_end: Optional[Callable[[int, int, List[str], Optional[str]], None]] = None,
 ) -> List[Signal]:
     """Fetch news and use LLM to detect emerging signals with topic labels.
 
     Args:
         config: Domain configuration.
-        on_progress: Optional callback called after each batch with
+        on_batch_start: Called before each batch with
+            (batch_index, total_batches, batch_categories).
+        on_batch_end: Called after each batch with
             (batch_index, total_batches, batch_categories, error_message_or_None).
     """
     articles = fetch_articles(config)
@@ -83,6 +86,9 @@ def detect_signals(
         batch_categories = config.categories[i:i + batch_size]
         batch_index = i // batch_size
 
+        if on_batch_start:
+            on_batch_start(batch_index, total_batches, batch_categories)
+
         try:
             batch_prompt = config.detection_prompt.format(
                 categories=", ".join(batch_categories),
@@ -91,13 +97,13 @@ def detect_signals(
             )
             results = chat_json(batch_prompt, max_tokens=16384)
             all_signals.extend(_parse_signals(results, config))
-            if on_progress:
-                on_progress(batch_index, total_batches, batch_categories, None)
+            if on_batch_end:
+                on_batch_end(batch_index, total_batches, batch_categories, None)
         except Exception as e:
             error_msg = _sanitize_error(e)
             logging.warning("Batch %s failed: %s", batch_categories, error_msg)
-            if on_progress:
-                on_progress(batch_index, total_batches, batch_categories, error_msg)
+            if on_batch_end:
+                on_batch_end(batch_index, total_batches, batch_categories, error_msg)
             continue
 
     return all_signals
