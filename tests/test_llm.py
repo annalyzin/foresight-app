@@ -1,17 +1,19 @@
 from __future__ import annotations
 
 import os
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 
-def _mock_chat_response(content: str):
+def _mock_chat_response(content: str, finish_reason: str = "stop"):
     """Create a mock OpenAI response with the given content."""
     msg = MagicMock()
     msg.content = content
     choice = MagicMock()
     choice.message = msg
+    choice.finish_reason = finish_reason
     resp = MagicMock()
     resp.choices = [choice]
     return resp
@@ -74,6 +76,43 @@ class TestChatJson:
     def test_json_object(self):
         result = _call_chat_json('{"signals": [{"a": 1}]}')
         assert result == {"signals": [{"a": 1}]}
+
+
+    def test_truncated_pretty_printed_salvage(self):
+        """Pretty-printed JSON truncated mid-object — salvage complete objects."""
+        pretty = (
+            '[\n'
+            '  {\n'
+            '    "title": "First",\n'
+            '    "score": 0.9\n'
+            '  },\n'
+            '  {\n'
+            '    "title": "Second",\n'
+            '    "score": 0.8\n'
+            '  },\n'
+            '  {\n'
+            '    "title": "Thi'
+        )
+        result = _call_chat_json(pretty)
+        assert result == [{"title": "First", "score": 0.9}, {"title": "Second", "score": 0.8}]
+
+    def test_truncated_with_nested_objects(self):
+        """Nested },  inside values must not trick the salvage logic."""
+        text = (
+            '[{"title": "A", "related_articles": [{"id": 1}, {"id": 2}]}, '
+            '{"title": "B", "related_articles": [{"id": 3}]}, '
+            '{"title": "C", "related_articles": [{"id": 4}, {"i'
+        )
+        result = _call_chat_json(text)
+        assert len(result) == 2
+        assert result[0]["title"] == "A"
+        assert result[1]["title"] == "B"
+
+    def test_truncated_with_string_containing_braces(self):
+        """Braces inside JSON string values must be ignored by depth tracker."""
+        text = '[{"body": "use {x} and {y}"}, {"body": "use {z}"}, {"body": "trunc'
+        result = _call_chat_json(text)
+        assert result == [{"body": "use {x} and {y}"}, {"body": "use {z}"}]
 
 
 class TestSanitizeError:
@@ -157,6 +196,18 @@ class TestChat:
         args = callback.call_args[0]
         assert args[0] == 1  # attempt
         assert args[1] == 2  # max_retries
+
+    def test_finish_reason_length_logs_warning(self, caplog):
+        from engine.llm import chat
+        mock_client = MagicMock()
+        mock_client.chat.completions.create.return_value = _mock_chat_response(
+            "partial content", finish_reason="length"
+        )
+        with patch("engine.llm.get_client", return_value=mock_client), \
+             caplog.at_level(logging.WARNING):
+            result = chat("test")
+        assert result == "partial content"
+        assert "truncated" in caplog.text.lower()
 
     def test_empty_choices_raises(self):
         from engine.llm import chat

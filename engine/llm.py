@@ -73,7 +73,13 @@ def chat(
             )
             if not response.choices:
                 raise ValueError("LLM returned response with no choices")
-            return response.choices[0].message.content
+            choice = response.choices[0]
+            if getattr(choice, "finish_reason", None) == "length":
+                logging.warning(
+                    "LLM response truncated (finish_reason=length) — "
+                    "output may be incomplete. Consider raising max_tokens."
+                )
+            return choice.message.content
         except Exception as e:
             last_error = e
             error_msg = _sanitize_error(e)
@@ -92,9 +98,43 @@ def chat(
     raise last_error
 
 
+def _find_last_complete_object(text: str, start: int) -> int:
+    """Walk *text* from *start* tracking ``{``/``}`` depth (respecting JSON strings).
+
+    Returns the index of the closing ``}`` of the last top-level object that
+    is fully closed (depth returns to 0), or ``-1`` if none is found.
+    """
+    depth = 0
+    in_string = False
+    escape = False
+    last_complete_end = -1
+
+    for i in range(start, len(text)):
+        ch = text[i]
+        if escape:
+            escape = False
+            continue
+        if ch == "\\":
+            if in_string:
+                escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == "{":
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0:
+                last_complete_end = i
+    return last_complete_end
+
+
 def chat_json(
     prompt: str,
-    system: str = "You are a helpful policy analyst. Respond with valid JSON only — no markdown fences, no explanation, just the JSON array or object.",
+    system: str = "You are a helpful policy analyst. Respond with valid JSON only — no markdown fences, no explanation, just the JSON array or object. Output minified/compact JSON with no extra whitespace or newlines.",
     max_tokens: int = 4096,
     on_retry: Callable[[int, int, str], None] | None = None,
 ) -> list | dict:
@@ -128,23 +168,12 @@ def chat_json(
         except json.JSONDecodeError:
             continue
 
-    # Truncated JSON array — try to salvage complete objects
+    # Truncated JSON array — try to salvage complete top-level objects
     start = text.find("[")
     if start != -1:
-        # Collapse whitespace so "}  ," becomes "}," for easier boundary detection
-        compact = re.sub(r"\}\s*,", "},", text[start:])
-        # Find the last complete object by looking for the last "},"
-        last_complete = compact.rfind("},")
-        if last_complete != -1:
-            salvaged = compact[:last_complete + 1] + "]"
-            try:
-                return json.loads(salvaged)
-            except json.JSONDecodeError:
-                pass
-        # Try finding last complete object ending with "}"
-        last_obj = compact.rfind("}")
-        if last_obj != -1:
-            salvaged = compact[:last_obj + 1] + "]"
+        last_complete_end = _find_last_complete_object(text, start + 1)
+        if last_complete_end != -1:
+            salvaged = text[start:last_complete_end + 1] + "]"
             try:
                 return json.loads(salvaged)
             except json.JSONDecodeError:
