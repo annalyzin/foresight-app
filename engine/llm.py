@@ -13,7 +13,7 @@ from openai import OpenAI
 
 load_dotenv()
 
-MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash-preview")
+MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash-preview-05-20")
 BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 _client: OpenAI | None = None
