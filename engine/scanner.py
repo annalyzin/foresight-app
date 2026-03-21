@@ -105,7 +105,7 @@ def detect_signals(
                 if on_retry:
                     on_retry(batch_index, total_batches, batch_categories, attempt, max_retries, error_msg)
 
-            results = chat_json(batch_prompt, max_tokens=16384, on_retry=_on_llm_retry)
+            results = chat_json(batch_prompt, max_tokens=32768, on_retry=_on_llm_retry)
             all_signals.extend(_parse_signals(results, config))
             if on_batch_end:
                 on_batch_end(batch_index, total_batches, batch_categories, None)

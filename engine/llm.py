@@ -131,19 +131,20 @@ def chat_json(
     # Truncated JSON array — try to salvage complete objects
     start = text.find("[")
     if start != -1:
-        partial = text[start:]
-        # Find the last complete object by looking for the last "},"  or "}" before truncation
-        last_complete = partial.rfind("},")
+        # Collapse whitespace so "}  ," becomes "}," for easier boundary detection
+        compact = re.sub(r"\}\s*,", "},", text[start:])
+        # Find the last complete object by looking for the last "},"
+        last_complete = compact.rfind("},")
         if last_complete != -1:
-            salvaged = partial[:last_complete + 1] + "]"
+            salvaged = compact[:last_complete + 1] + "]"
             try:
                 return json.loads(salvaged)
             except json.JSONDecodeError:
                 pass
         # Try finding last complete object ending with "}"
-        last_obj = partial.rfind("}")
+        last_obj = compact.rfind("}")
         if last_obj != -1:
-            salvaged = partial[:last_obj + 1] + "]"
+            salvaged = compact[:last_obj + 1] + "]"
             try:
                 return json.loads(salvaged)
             except json.JSONDecodeError:
