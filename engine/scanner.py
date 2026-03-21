@@ -1,7 +1,8 @@
 from __future__ import annotations
 
 import logging
-from typing import List
+import math
+from typing import Callable, List, Optional
 
 from config.base import DomainConfig
 from data.models import Signal, SourceArticle
@@ -51,8 +52,17 @@ def _parse_signals(results, config: DomainConfig) -> List[Signal]:
     return signals
 
 
-def detect_signals(config: DomainConfig) -> List[Signal]:
-    """Fetch news and use LLM to detect emerging signals with topic labels."""
+def detect_signals(
+    config: DomainConfig,
+    on_progress: Optional[Callable[[int, int, List[str], Optional[str]], None]] = None,
+) -> List[Signal]:
+    """Fetch news and use LLM to detect emerging signals with topic labels.
+
+    Args:
+        config: Domain configuration.
+        on_progress: Optional callback called after each batch with
+            (batch_index, total_batches, batch_categories, error_message_or_None).
+    """
     articles = fetch_articles(config)
     articles_text = format_articles_for_llm(articles)
 
@@ -67,20 +77,26 @@ def detect_signals(config: DomainConfig) -> List[Signal]:
 
     # Process categories in batches to avoid output truncation
     batch_size = 2
+    total_batches = math.ceil(len(config.categories) / batch_size)
+
     for i in range(0, len(config.categories), batch_size):
         batch_categories = config.categories[i:i + batch_size]
-
-        batch_prompt = config.detection_prompt.format(
-            categories=", ".join(batch_categories),
-            existing_topics=topics_str,
-            articles=articles_text,
-        )
+        batch_index = i // batch_size
 
         try:
+            batch_prompt = config.detection_prompt.format(
+                categories=", ".join(batch_categories),
+                existing_topics=topics_str,
+                articles=articles_text,
+            )
             results = chat_json(batch_prompt, max_tokens=16384)
             all_signals.extend(_parse_signals(results, config))
+            if on_progress:
+                on_progress(batch_index, total_batches, batch_categories, None)
         except Exception as e:
             logging.warning("Batch %s failed: %s", batch_categories, e)
+            if on_progress:
+                on_progress(batch_index, total_batches, batch_categories, str(e))
             continue
 
     return all_signals

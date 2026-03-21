@@ -71,14 +71,43 @@ if scan_clicked:
         articles = fetch_articles(config)
         st.write(f"Fetched {len(articles)} articles from feeds.")
 
-        new_signals = detect_signals(config)
-        st.write(f"Detected {len(new_signals)} signals. Scoring...")
+        st.write("Analyzing articles with LLM (this may take a few minutes)...")
+        progress_bar = st.progress(0)
+        batch_errors = []
 
-        new_signals = score_signals(new_signals)
+        def _on_batch_progress(batch_index, total_batches, batch_categories, error):
+            pct = (batch_index + 1) / total_batches
+            progress_bar.progress(pct, text=f"Batch {batch_index + 1}/{total_batches}")
+            if error:
+                batch_errors.append((batch_categories, error))
+                st.warning(
+                    f"Batch failed for themes **{', '.join(batch_categories)}**: {error}"
+                )
+            else:
+                st.write(
+                    f"Batch {batch_index + 1}/{total_batches} done "
+                    f"({', '.join(batch_categories)})"
+                )
 
-        append_signals(domain_name, new_signals)
+        new_signals = detect_signals(config, on_progress=_on_batch_progress)
+        progress_bar.empty()
 
-        status.update(label="Scan complete!", state="complete")
+        if not new_signals and batch_errors:
+            st.error(
+                f"All {len(batch_errors)} batches failed — no signals detected. "
+                "Check your API key and network connection."
+            )
+            status.update(label="Scan failed", state="error")
+        else:
+            if batch_errors:
+                st.warning(
+                    f"{len(batch_errors)} of {len(batch_errors) + len(new_signals)} "
+                    f"batch(es) failed. Partial results shown below."
+                )
+            st.write(f"Detected {len(new_signals)} signals. Scoring...")
+            new_signals = score_signals(new_signals)
+            append_signals(domain_name, new_signals)
+            status.update(label="Scan complete!", state="complete")
 
 # ── Load data ────────────────────────────────────────────────────────────────
 signals = load_signals(domain_name)
