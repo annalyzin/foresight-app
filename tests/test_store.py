@@ -10,6 +10,7 @@ from data.store import (
     _merge_topic,
     _normalize_topic,
     _signals_path,
+    _tokenize_topic,
     append_signals,
     get_existing_topics,
     load_signals,
@@ -38,15 +39,15 @@ class TestStore:
         assert loaded[0].source_articles[0].source == "Reuters"
 
     def test_append_signals(self, signals_dir, make_signal):
-        s1 = make_signal(topic="topic1")
-        s2 = make_signal(topic="topic2")
+        s1 = make_signal(topic="AI governance frameworks")
+        s2 = make_signal(topic="Youth social media bans")
         save_signals("Test", [s1])
         append_signals("Test", [s2])
 
         loaded = load_signals("Test")
         assert len(loaded) == 2
         topics = {s.topic for s in loaded}
-        assert topics == {"topic1", "topic2"}
+        assert topics == {"AI governance frameworks", "Youth social media bans"}
 
     def test_append_signals_dedup(self, signals_dir, make_signal):
         s1 = make_signal(topic="topic1", title="Title A")
@@ -134,6 +135,60 @@ class TestMergeTopic:
         existing = {"AI Governance Regulation"}
         result = _merge_topic("ai governance regulation", existing)
         assert result == "AI Governance Regulation"
+
+
+class TestTokenizeTopic:
+    def test_basic_tokenization(self):
+        assert _tokenize_topic("AI governance frameworks") == {"ai", "governance", "frameworks"}
+
+    def test_stop_words_removed(self):
+        assert _tokenize_topic("AI in Google Search") == {"ai", "google", "search"}
+
+    def test_hyphenated_split(self):
+        assert _tokenize_topic("State-level antitrust enforcement") == {
+            "state", "level", "antitrust", "enforcement",
+        }
+
+    def test_special_chars(self):
+        assert _tokenize_topic("AI governance & regulation") == {
+            "ai", "governance", "regulation",
+        }
+
+
+class TestMergeTopicJaccard:
+    def test_semantic_duplicate_via_jaccard(self):
+        """Pairs that fail old SequenceMatcher 0.85 but pass token Jaccard."""
+        existing = {"AI governance frameworks"}
+        result = _merge_topic("AI governance & regulation", existing)
+        assert result == "AI governance frameworks"
+
+    def test_search_topic_merge(self):
+        existing = {"AI in Google Search"}
+        result = _merge_topic("AI in Search impact", existing)
+        assert result == "AI in Google Search"
+
+    def test_high_seq_match_still_works(self):
+        existing = {"State antitrust enforcement"}
+        result = _merge_topic("State-level antitrust enforcement", existing)
+        assert result == "State antitrust enforcement"
+
+    def test_no_false_merge_different_topics(self):
+        existing = {"AI legal liability"}
+        result = _merge_topic("Youth social media bans", existing)
+        assert result == "Youth social media bans"
+
+    def test_no_false_merge_partial_overlap(self):
+        """Topics sharing some words but different meaning should not merge."""
+        existing = {"AI legal liability"}
+        result = _merge_topic("AI content legal issues", existing)
+        # jaccard = {"ai","content","legal","issues"} & {"ai","legal","liability"} = {"ai","legal"}
+        # jaccard = 2/5 = 0.40 < 0.50 — should NOT merge
+        assert result == "AI content legal issues"
+
+    def test_picks_best_match(self):
+        existing = {"AI governance frameworks", "AI copyright liability expansion"}
+        result = _merge_topic("AI governance & regulation", existing)
+        assert result == "AI governance frameworks"
 
 
 class TestAppendSignalsFuzzyDedup:

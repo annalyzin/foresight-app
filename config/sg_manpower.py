@@ -63,15 +63,23 @@ that could affect Singapore's manpower policies.
 Broad themes for context: {categories}
 
 TOPIC ASSIGNMENT:
-Each signal MUST have a "topic" — a specific policy narrative (3-6 words).
-Good: "Platform worker CPF protections", "Foreign workforce COMPASS tightening"
-Bad: "Workforce Policy" (too broad), "Jobs" (too vague)
+Each signal MUST have a "topic" — a specific policy narrative (3-7 words).
+Structure: [Action/Trend] + [Specific Subject] + [Context]
+Self-check: if someone reads ONLY the topic, they should understand the policy direction.
+
+Good: "Platform worker CPF protections"
+Good: "Foreign workforce COMPASS tightening"
+Good: "AI displacement in finance sector"
+Bad: "Workforce Policy" (too broad — which policy?)
+Bad: "Singapore gig workers" (no action — what ABOUT them?)
+Bad: "Jobs" (too vague — what aspect of jobs?)
 
 EXISTING TOPICS from previous scans:
 {existing_topics}
 
-If a signal relates to an existing topic, REUSE that EXACT label.
-Only create a new topic for genuinely distinct narratives.
+1. REUSE an existing topic's EXACT label whenever the signal fits that narrative.
+2. Only create a new topic for genuinely distinct narratives not covered above.
+3. Prefer merging into an existing topic over creating a near-duplicate.
 
 For each signal, provide:
 - topic: Specific policy narrative label (3-6 words)

@@ -248,7 +248,7 @@ if signals:
             xaxis=dict(title="Date", tickformat="%Y-%m-%d", dtick=86400000),
             height=500,
             margin=dict(l=40, r=40, t=30, b=40),
-            legend=dict(orientation="h", yanchor="bottom", y=-0.4, x=0),
+            showlegend=False,
         )
         st.plotly_chart(fig, use_container_width=True)
     else:

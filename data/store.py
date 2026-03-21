@@ -35,15 +35,42 @@ def _normalize_topic(topic: str) -> str:
     return re.sub(r"\s+", " ", topic.strip().lower())
 
 
-def _merge_topic(new_topic: str, existing_topics: Set[str], threshold: float = 0.85) -> str:
-    """Return the existing topic if fuzzy-similar, otherwise return new_topic as-is."""
+_STOP_WORDS = frozenset({"a", "an", "the", "in", "of", "for", "and", "on", "to", "vs"})
+
+
+def _tokenize_topic(topic: str) -> set[str]:
+    """Extract content words: lowercase, split on non-alphanumeric, drop stop words."""
+    return {w for w in re.findall(r"[a-z0-9]+", topic.lower()) if w not in _STOP_WORDS}
+
+
+def _merge_topic(
+    new_topic: str,
+    existing_topics: Set[str],
+    seq_threshold: float = 0.65,
+    jaccard_threshold: float = 0.50,
+) -> str:
+    """Return the existing topic if similar by SequenceMatcher OR token Jaccard, otherwise new_topic."""
     norm_new = _normalize_topic(new_topic)
+    tokens_new = _tokenize_topic(new_topic)
+    best_match = None
+    best_score = -1.0
+
     for existing in existing_topics:
         norm_existing = _normalize_topic(existing)
-        ratio = difflib.SequenceMatcher(None, norm_new, norm_existing).ratio()
-        if ratio >= threshold:
-            return existing
-    return new_topic
+        seq_ratio = difflib.SequenceMatcher(None, norm_new, norm_existing).ratio()
+
+        tokens_existing = _tokenize_topic(existing)
+        intersection = tokens_new & tokens_existing
+        union = tokens_new | tokens_existing
+        jaccard = len(intersection) / len(union) if union else 0.0
+
+        if seq_ratio >= seq_threshold or jaccard >= jaccard_threshold:
+            score = max(seq_ratio, jaccard)
+            if score > best_score:
+                best_score = score
+                best_match = existing
+
+    return best_match if best_match is not None else new_topic
 
 
 def load_signals(domain: str) -> List[Signal]:

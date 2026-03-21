@@ -63,6 +63,7 @@ BIG_TECH_CONFIG = DomainConfig(
         "deepfake AI generated content law",
         "app store DMA",
     ],
+    single_theme=True,  # TEMP: remove after testing
     detection_prompt="""You are a senior policy analyst specializing in Big Tech regulation.
 Given the following recent news headlines and descriptions, identify emerging signals
 that could impact Google's policy strategy.
@@ -70,15 +71,23 @@ that could impact Google's policy strategy.
 Broad themes for context: {categories}
 
 TOPIC ASSIGNMENT:
-Each signal MUST have a "topic" — a specific policy narrative (3-6 words).
-Good: "Youth social media bans", "Google Search antitrust remedies"
-Bad: "AI Governance" (too broad), "Regulation" (too vague)
+Each signal MUST have a "topic" — a specific policy narrative (3-7 words).
+Structure: [Action/Trend] + [Specific Subject] + [Context]
+Self-check: if someone reads ONLY the topic, they should understand the policy direction.
+
+Good: "Antitrust remedies for search monopoly"
+Good: "Youth social media age verification"
+Good: "AI copyright liability expansion"
+Bad: "AI in Google Search" (no action — WHAT about AI in search?)
+Bad: "AI Governance" (too broad — which aspect?)
+Bad: "AI content legal issues" (vague — what kind of issues?)
 
 EXISTING TOPICS from previous scans:
 {existing_topics}
 
-If a signal relates to an existing topic, REUSE that EXACT label.
-Only create a new topic for genuinely distinct narratives.
+1. REUSE an existing topic's EXACT label whenever the signal fits that narrative.
+2. Only create a new topic for genuinely distinct narratives not covered above.
+3. Prefer merging into an existing topic over creating a near-duplicate.
 
 For each signal, provide:
 - topic: Specific policy narrative label (3-6 words)
