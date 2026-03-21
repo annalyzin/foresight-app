@@ -28,9 +28,9 @@ def _sanitize_error(e: Exception) -> str:
     return msg
 
 
-MAX_RETRIES = 3
-RETRY_BACKOFF = [5, 15, 30]  # seconds between retries
-REQUEST_TIMEOUT = 120  # seconds
+MAX_RETRIES = 2
+RETRY_BACKOFF = [5, 10]  # seconds between retries
+REQUEST_TIMEOUT = 60  # seconds
 
 
 def get_client() -> OpenAI:
@@ -43,7 +43,18 @@ def get_client() -> OpenAI:
     return _client
 
 
-def chat(prompt: str, system: str = "You are a helpful policy analyst.", max_tokens: int = 4096) -> str:
+def chat(
+    prompt: str,
+    system: str = "You are a helpful policy analyst.",
+    max_tokens: int = 4096,
+    on_retry: "Callable[[int, int, str], None] | None" = None,
+) -> str:
+    """Call the LLM with automatic retries.
+
+    Args:
+        on_retry: Optional callback(attempt, max_retries, error_message)
+            called before each retry sleep.
+    """
     client = get_client()
     last_error = None
 
@@ -63,19 +74,27 @@ def chat(prompt: str, system: str = "You are a helpful policy analyst.", max_tok
             return response.choices[0].message.content
         except Exception as e:
             last_error = e
+            error_msg = _sanitize_error(e)
             if attempt < MAX_RETRIES - 1:
                 wait = RETRY_BACKOFF[attempt]
                 logging.warning(
                     "LLM request failed (attempt %d/%d), retrying in %ds: %s",
-                    attempt + 1, MAX_RETRIES, wait, _sanitize_error(e),
+                    attempt + 1, MAX_RETRIES, wait, error_msg,
                 )
+                if on_retry:
+                    on_retry(attempt + 1, MAX_RETRIES, error_msg)
                 time.sleep(wait)
 
     raise last_error
 
 
-def chat_json(prompt: str, system: str = "You are a helpful policy analyst. Respond with valid JSON only — no markdown fences, no explanation, just the JSON array or object.", max_tokens: int = 4096) -> list | dict:
-    raw = chat(prompt, system, max_tokens=max_tokens)
+def chat_json(
+    prompt: str,
+    system: str = "You are a helpful policy analyst. Respond with valid JSON only — no markdown fences, no explanation, just the JSON array or object.",
+    max_tokens: int = 4096,
+    on_retry: "Callable[[int, int, str], None] | None" = None,
+) -> list | dict:
+    raw = chat(prompt, system, max_tokens=max_tokens, on_retry=on_retry)
     if not raw or not raw.strip():
         raise ValueError("LLM returned empty response")
 

@@ -56,6 +56,7 @@ def detect_signals(
     config: DomainConfig,
     on_batch_start: Optional[Callable[[int, int, List[str]], None]] = None,
     on_batch_end: Optional[Callable[[int, int, List[str], Optional[str]], None]] = None,
+    on_retry: Optional[Callable[[int, int, List[str], int, int, str], None]] = None,
 ) -> List[Signal]:
     """Fetch news and use LLM to detect emerging signals with topic labels.
 
@@ -65,6 +66,8 @@ def detect_signals(
             (batch_index, total_batches, batch_categories).
         on_batch_end: Called after each batch with
             (batch_index, total_batches, batch_categories, error_message_or_None).
+        on_retry: Called before each LLM retry with
+            (batch_index, total_batches, batch_categories, attempt, max_retries, error_msg).
     """
     articles = fetch_articles(config)
     articles_text = format_articles_for_llm(articles)
@@ -95,7 +98,11 @@ def detect_signals(
                 existing_topics=topics_str,
                 articles=articles_text,
             )
-            results = chat_json(batch_prompt, max_tokens=16384)
+            def _on_llm_retry(attempt, max_retries, error_msg):
+                if on_retry:
+                    on_retry(batch_index, total_batches, batch_categories, attempt, max_retries, error_msg)
+
+            results = chat_json(batch_prompt, max_tokens=16384, on_retry=_on_llm_retry)
             all_signals.extend(_parse_signals(results, config))
             if on_batch_end:
                 on_batch_end(batch_index, total_batches, batch_categories, None)

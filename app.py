@@ -99,10 +99,18 @@ if scan_clicked:
                     f"({', '.join(batch_categories)})"
                 )
 
+        def _on_retry(batch_index, total_batches, batch_categories, attempt, max_retries, error_msg):
+            st.write(
+                f"Batch {batch_index + 1}/{total_batches} "
+                f"({', '.join(batch_categories)}) — "
+                f"retry {attempt}/{max_retries}: {error_msg}"
+            )
+
         new_signals = detect_signals(
             config,
             on_batch_start=_on_batch_start,
             on_batch_end=_on_batch_end,
+            on_retry=_on_retry,
         )
         progress_bar.empty()
 
