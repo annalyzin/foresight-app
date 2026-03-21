@@ -6,7 +6,15 @@ from datetime import datetime
 import pytest
 
 from data.models import SourceArticle
-from data.store import _signals_path, append_signals, get_existing_topics, load_signals, save_signals
+from data.store import (
+    _merge_topic,
+    _normalize_topic,
+    _signals_path,
+    append_signals,
+    get_existing_topics,
+    load_signals,
+    save_signals,
+)
 
 
 class TestStore:
@@ -91,3 +99,53 @@ class TestStore:
     def test_signals_path_slugification(self):
         path = _signals_path("Big Tech & AI Policy!")
         assert path.name == "big_tech___ai_policy__signals.json"
+
+
+class TestNormalizeTopic:
+    def test_lowercase_and_strip(self):
+        assert _normalize_topic("  AI Governance  ") == "ai governance"
+
+    def test_collapse_whitespace(self):
+        assert _normalize_topic("AI   governance  regulation") == "ai governance regulation"
+
+    def test_already_normal(self):
+        assert _normalize_topic("antitrust enforcement") == "antitrust enforcement"
+
+
+class TestMergeTopic:
+    def test_exact_match(self):
+        existing = {"State antitrust enforcement"}
+        assert _merge_topic("State antitrust enforcement", existing) == "State antitrust enforcement"
+
+    def test_fuzzy_match_returns_existing(self):
+        existing = {"State antitrust enforcement"}
+        result = _merge_topic("State-level antitrust enforcement", existing)
+        assert result == "State antitrust enforcement"
+
+    def test_no_match_returns_new(self):
+        existing = {"AI governance"}
+        result = _merge_topic("Privacy regulation", existing)
+        assert result == "Privacy regulation"
+
+    def test_empty_existing(self):
+        assert _merge_topic("New topic", set()) == "New topic"
+
+    def test_case_insensitive_fuzzy(self):
+        existing = {"AI Governance Regulation"}
+        result = _merge_topic("ai governance regulation", existing)
+        assert result == "AI Governance Regulation"
+
+
+class TestAppendSignalsFuzzyDedup:
+    def test_fuzzy_topic_merged_on_append(self, signals_dir, make_signal):
+        s1 = make_signal(topic="State antitrust enforcement", title="Signal A")
+        save_signals("Test", [s1])
+
+        s2 = make_signal(topic="State-level antitrust enforcement", title="Signal B")
+        append_signals("Test", [s2])
+
+        loaded = load_signals("Test")
+        assert len(loaded) == 2
+        # Both should share the original topic label
+        topics = {s.topic for s in loaded}
+        assert topics == {"State antitrust enforcement"}

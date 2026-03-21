@@ -12,3 +12,8 @@ class DomainConfig:
     categories: List[str]  # Broad themes (internal context)
     feeds: List[str]
     detection_prompt: str
+    keywords: List[str] = None  # Search phrases for GDELT historical backfill
+
+    def __post_init__(self):
+        if self.keywords is None:
+            self.keywords = []

@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime, timedelta
 from typing import Callable, List, Optional
 
 from config.base import DomainConfig
 from data.models import Signal, SourceArticle
-from data.store import get_existing_topics
+from data.store import append_signals, get_existing_topics
 from engine.llm import chat_json, _sanitize_error
-from engine.news import fetch_articles, format_articles_for_llm
+from engine.news import fetch_articles, fetch_gdelt_articles, format_articles_for_llm
 
 
 def _parse_signals(results, config: DomainConfig) -> List[Signal]:
@@ -117,3 +118,62 @@ def detect_signals(
             continue
 
     return all_signals
+
+
+def _build_windows(
+    start_date: datetime, end_date: datetime, months: int = 3
+) -> List[tuple[datetime, datetime]]:
+    """Split a date range into windows of approximately `months` months."""
+    windows = []
+    cursor = start_date
+    while cursor < end_date:
+        window_end = cursor + timedelta(days=months * 30)
+        if window_end > end_date:
+            window_end = end_date
+        windows.append((cursor, window_end))
+        cursor = window_end
+    return windows
+
+
+def backfill_signals(
+    config: DomainConfig,
+    start_date: datetime,
+    end_date: datetime,
+    on_progress: Optional[Callable[[int, int, str], None]] = None,
+) -> int:
+    """Fetch historical articles from GDELT and run through the LLM pipeline.
+
+    Args:
+        config: Domain configuration (must have keywords).
+        start_date: Start of backfill range.
+        end_date: End of backfill range.
+        on_progress: Called with (window_index, total_windows, label) for each window.
+
+    Returns:
+        Total number of new signals detected.
+    """
+    windows = _build_windows(start_date, end_date)
+    total_windows = len(windows)
+    total_signals = 0
+
+    for i, (win_start, win_end) in enumerate(windows):
+        label = f"{win_start.strftime('%Y-%m')} to {win_end.strftime('%Y-%m')}"
+        if on_progress:
+            on_progress(i, total_windows, label)
+
+        articles = fetch_gdelt_articles(config.keywords, win_start, win_end)
+        if not articles:
+            continue
+
+        signals = detect_signals(config, articles=articles)
+
+        # Override timestamps to reflect the window's midpoint
+        midpoint = win_start + (win_end - win_start) / 2
+        for s in signals:
+            s.timestamp = midpoint
+
+        if signals:
+            append_signals(config.name, signals)
+            total_signals += len(signals)
+
+    return total_signals

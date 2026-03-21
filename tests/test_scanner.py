@@ -6,7 +6,10 @@ import pytest
 
 from config.base import DomainConfig
 from data.models import Signal
-from engine.scanner import _parse_signals, detect_signals
+from engine.scanner import _build_windows, _parse_signals, backfill_signals, detect_signals
+
+
+from datetime import datetime
 
 
 @pytest.fixture
@@ -18,6 +21,7 @@ def config():
         categories=["Antitrust", "Privacy", "AI Governance"],
         feeds=["https://feed1.com/rss", "https://feed2.com/rss"],
         detection_prompt="Categories: {categories}\nTopics: {existing_topics}\nArticles:\n{articles}",
+        keywords=["tech antitrust", "data privacy"],
     )
 
 
@@ -186,3 +190,88 @@ class TestDetectSignals:
         mock_chat.side_effect = RuntimeError("LLM down")
         result = detect_signals(config)
         assert result == []
+
+
+class TestBuildWindows:
+    def test_exact_three_month_windows(self):
+        start = datetime(2023, 1, 1)
+        end = datetime(2024, 1, 1)
+        windows = _build_windows(start, end, months=3)
+        # ~365 days / 90 days per window ≈ 4-5 windows
+        assert len(windows) >= 4
+        assert windows[0][0] == start
+        assert windows[-1][1] == end
+
+    def test_short_range_single_window(self):
+        start = datetime(2025, 1, 1)
+        end = datetime(2025, 2, 1)
+        windows = _build_windows(start, end, months=3)
+        assert len(windows) == 1
+        assert windows[0] == (start, end)
+
+    def test_windows_are_contiguous(self):
+        start = datetime(2022, 6, 1)
+        end = datetime(2023, 6, 1)
+        windows = _build_windows(start, end, months=3)
+        for i in range(len(windows) - 1):
+            assert windows[i][1] == windows[i + 1][0]
+
+    def test_last_window_ends_at_end_date(self):
+        start = datetime(2023, 1, 1)
+        end = datetime(2023, 7, 15)
+        windows = _build_windows(start, end, months=3)
+        assert windows[-1][1] == end
+
+
+class TestBackfillSignals:
+    @patch("engine.scanner.append_signals")
+    @patch("engine.scanner.detect_signals")
+    @patch("engine.scanner.fetch_gdelt_articles")
+    def test_calls_pipeline_per_window(self, mock_gdelt, mock_detect, mock_append, config):
+        mock_gdelt.return_value = [
+            {"title": "T", "source": "s", "link": "", "description": "", "published": ""},
+        ]
+        mock_detect.return_value = [
+            Signal(domain="Test Domain", topic="t", categories=["Antitrust"],
+                   title="t", description="d", strength_score=5,
+                   reasoning="r", sources=["s"]),
+        ]
+
+        start = datetime(2025, 1, 1)
+        end = datetime(2025, 4, 1)  # ~1 window of 3 months
+        total = backfill_signals(config, start, end)
+
+        assert total >= 1
+        assert mock_gdelt.call_count >= 1
+        assert mock_detect.call_count >= 1
+        assert mock_append.call_count >= 1
+
+    @patch("engine.scanner.append_signals")
+    @patch("engine.scanner.detect_signals")
+    @patch("engine.scanner.fetch_gdelt_articles")
+    def test_skips_empty_windows(self, mock_gdelt, mock_detect, mock_append, config):
+        mock_gdelt.return_value = []
+
+        start = datetime(2025, 1, 1)
+        end = datetime(2025, 4, 1)
+        total = backfill_signals(config, start, end)
+
+        assert total == 0
+        mock_detect.assert_not_called()
+        mock_append.assert_not_called()
+
+    @patch("engine.scanner.append_signals")
+    @patch("engine.scanner.detect_signals")
+    @patch("engine.scanner.fetch_gdelt_articles")
+    def test_progress_callback(self, mock_gdelt, mock_detect, mock_append, config):
+        mock_gdelt.return_value = []
+        on_progress = MagicMock()
+
+        start = datetime(2023, 1, 1)
+        end = datetime(2024, 1, 1)
+        backfill_signals(config, start, end, on_progress=on_progress)
+
+        assert on_progress.call_count >= 4
+        first_call = on_progress.call_args_list[0][0]
+        assert first_call[0] == 0  # window_index
+        assert first_call[1] >= 4  # total_windows

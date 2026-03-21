@@ -9,6 +9,7 @@ from urllib.parse import urlparse
 from typing import Dict, List
 
 import feedparser
+import requests
 
 from config.base import DomainConfig
 
@@ -88,6 +89,71 @@ def fetch_articles(config: DomainConfig, days: int = 7) -> List[Dict]:
         except Exception as e:
             logging.warning("Failed to fetch feed %s: %s", feed_url, e)
             continue
+
+    return articles
+
+
+def fetch_gdelt_articles(
+    keywords: List[str],
+    start_date: datetime,
+    end_date: datetime,
+) -> List[Dict]:
+    """Fetch historical articles from GDELT for the given keywords and date range."""
+    seen_titles: set[str] = set()
+    articles: List[Dict] = []
+
+    start_str = start_date.strftime("%Y%m%d%H%M%S")
+    end_str = end_date.strftime("%Y%m%d%H%M%S")
+
+    for keyword in keywords:
+        try:
+            resp = requests.get(
+                "https://api.gdeltproject.org/api/v2/doc/doc",
+                params={
+                    "query": keyword,
+                    "mode": "artlist",
+                    "maxrecords": "250",
+                    "startdatetime": start_str,
+                    "enddatetime": end_str,
+                    "format": "json",
+                },
+                timeout=30,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+        except Exception as e:
+            logging.warning("GDELT query failed for %r: %s", keyword, e)
+            continue
+
+        for art in data.get("articles", []):
+            title = (art.get("title") or "").strip()
+            if not title:
+                continue
+            title_lower = title.lower()
+            if title_lower in seen_titles:
+                continue
+            seen_titles.add(title_lower)
+
+            # Parse GDELT seendate (YYYYMMDDTHHMMSSZ)
+            pub_date = ""
+            seen_raw = art.get("seendate", "")
+            if seen_raw:
+                try:
+                    dt = datetime.strptime(seen_raw, "%Y%m%dT%H%M%SZ").replace(tzinfo=timezone.utc)
+                    pub_date = dt.isoformat()
+                except ValueError:
+                    pub_date = seen_raw
+
+            articles.append({
+                "title": title,
+                "description": "",
+                "link": art.get("url", ""),
+                "published": pub_date,
+                "source": art.get("domain", ""),
+            })
+
+            if len(articles) >= MAX_ARTICLES_FOR_LLM:
+                return articles
 
     return articles
 

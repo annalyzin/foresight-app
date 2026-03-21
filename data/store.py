@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import difflib
 import json
 import logging
 import os
@@ -7,7 +8,7 @@ import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
-from typing import List, Set
+from typing import List, Optional, Set
 
 from data.models import Signal
 
@@ -27,6 +28,22 @@ def _serialize(obj):
     if isinstance(obj, datetime):
         return obj.isoformat()
     raise TypeError(f"Not serializable: {type(obj)}")
+
+
+def _normalize_topic(topic: str) -> str:
+    """Lowercase, strip, and collapse whitespace."""
+    return re.sub(r"\s+", " ", topic.strip().lower())
+
+
+def _merge_topic(new_topic: str, existing_topics: Set[str], threshold: float = 0.85) -> str:
+    """Return the existing topic if fuzzy-similar, otherwise return new_topic as-is."""
+    norm_new = _normalize_topic(new_topic)
+    for existing in existing_topics:
+        norm_existing = _normalize_topic(existing)
+        ratio = difflib.SequenceMatcher(None, norm_new, norm_existing).ratio()
+        if ratio >= threshold:
+            return existing
+    return new_topic
 
 
 def load_signals(domain: str) -> List[Signal]:
@@ -70,6 +87,15 @@ def save_signals(domain: str, signals: List[Signal]):
 
 def append_signals(domain: str, new_signals: List[Signal]):
     existing = load_signals(domain)
+    existing_topics = {s.topic for s in existing if s.topic}
+
+    # Remap near-duplicate topics to existing labels
+    for s in new_signals:
+        if s.topic:
+            merged = _merge_topic(s.topic, existing_topics)
+            s.topic = merged
+            existing_topics.add(merged)
+
     seen = {(s.topic, s.title) for s in existing}
     unique_new = [s for s in new_signals if (s.topic, s.title) not in seen]
     existing.extend(unique_new)

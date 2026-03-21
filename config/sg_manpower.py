@@ -42,6 +42,20 @@ SG_MANPOWER_CONFIG = DomainConfig(
         # ILO
         "https://www.ilo.org/feed/news/en",
     ],
+    keywords=[
+        "Singapore workforce policy",
+        "Singapore foreign workers",
+        "Singapore gig economy",
+        "Singapore wages employment",
+        "Singapore automation jobs",
+        "Singapore skills training",
+        "Singapore employment pass COMPASS",
+        "Singapore progressive wage model",
+        "Singapore workplace safety",
+        "Singapore retirement age CPF",
+        "Singapore platform workers",
+        "Singapore AI jobs displacement",
+    ],
     detection_prompt="""You are a senior policy analyst at Singapore's Ministry of Manpower.
 Given the following recent news headlines and descriptions, identify emerging signals
 that could affect Singapore's manpower policies.

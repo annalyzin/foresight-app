@@ -1,8 +1,9 @@
 import os
 import streamlit as st
+import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from config import DOMAINS
 from data.store import append_signals, load_signals
@@ -23,6 +24,23 @@ with st.sidebar:
     st.divider()
 
     scan_clicked = st.button("🔍 Scan Now", use_container_width=True)
+
+    st.divider()
+
+    # ── Historical Backfill ──
+    if config.keywords:
+        st.subheader("Historical Backfill")
+        st.caption("Fetch historical articles from GDELT")
+        today = datetime.today().date()
+        three_years_ago = today - timedelta(days=3 * 365)
+        backfill_cols = st.columns(2)
+        with backfill_cols[0]:
+            backfill_start = st.date_input("From", value=three_years_ago, key="bf_start")
+        with backfill_cols[1]:
+            backfill_end = st.date_input("To", value=today, key="bf_end")
+        backfill_clicked = st.button("📚 Backfill", use_container_width=True)
+    else:
+        backfill_clicked = False
 
     st.divider()
 
@@ -114,6 +132,43 @@ if scan_clicked:
             append_signals(domain_name, new_signals)
             status.update(label="Scan complete!", state="complete")
 
+# ── Run backfill ──────────────────────────────────────────────────────────────
+if backfill_clicked:
+    if not os.getenv("OPENROUTER_API_KEY"):
+        st.error("OPENROUTER_API_KEY not set. Add it to your .env file.")
+        st.stop()
+
+    with st.status("Running historical backfill...", expanded=True) as status:
+        from engine.scanner import backfill_signals
+
+        bf_start_dt = datetime.combine(backfill_start, datetime.min.time())
+        bf_end_dt = datetime.combine(backfill_end, datetime.min.time())
+
+        progress_bar = st.progress(0)
+
+        def _on_backfill_progress(window_index, total_windows, label):
+            pct = window_index / total_windows
+            progress_bar.progress(
+                pct,
+                text=f"Window {window_index + 1}/{total_windows}: {label}",
+            )
+            st.write(f"Fetching & scanning window {window_index + 1}/{total_windows}: {label}...")
+
+        total_new = backfill_signals(
+            config,
+            start_date=bf_start_dt,
+            end_date=bf_end_dt,
+            on_progress=_on_backfill_progress,
+        )
+        progress_bar.progress(1.0, text="Done")
+
+        if total_new:
+            st.write(f"Backfill complete — {total_new} new signals added.")
+            status.update(label="Backfill complete!", state="complete")
+        else:
+            st.warning("No new signals found in the selected date range.")
+            status.update(label="Backfill complete (no new signals)", state="complete")
+
 # ── Load data ────────────────────────────────────────────────────────────────
 signals = load_signals(domain_name)
 
@@ -170,20 +225,27 @@ if signals:
 
         fig = go.Figure()
 
-        for topic in sorted(df["topic"].unique()):
+        # Build a palette with 50 distinct colors
+        _palette = list(px.colors.qualitative.Alphabet) + list(px.colors.qualitative.Dark24)
+        sorted_topics = sorted(df["topic"].unique())
+        topic_color = {t: _palette[i % len(_palette)] for i, t in enumerate(sorted_topics)}
+
+        for topic in sorted_topics:
             topic_df = df[df["topic"] == topic].sort_values("timestamp")
             fig.add_trace(go.Scatter(
                 x=topic_df["timestamp"],
                 y=topic_df["strength_score"],
                 mode="lines+markers",
                 name=topic,
+                marker=dict(color=topic_color[topic]),
+                line=dict(color=topic_color[topic]),
                 hovertemplate="%{customdata}<extra></extra>",
                 customdata=topic_df["hover"],
             ))
 
         fig.update_layout(
             yaxis=dict(title="Strength Score", range=[0, 10.5]),
-            xaxis=dict(title="Date"),
+            xaxis=dict(title="Date", tickformat="%Y-%m-%d", dtick=86400000),
             height=500,
             margin=dict(l=40, r=40, t=30, b=40),
             legend=dict(orientation="h", yanchor="bottom", y=-0.4, x=0),

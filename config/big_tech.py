@@ -49,6 +49,20 @@ BIG_TECH_CONFIG = DomainConfig(
         # arXiv
         "https://rss.arxiv.org/rss/cs.CY",
     ],
+    keywords=[
+        "big tech regulation",
+        "tech antitrust",
+        "data privacy law",
+        "AI regulation policy",
+        "content moderation regulation",
+        "digital services tax",
+        "youth online safety bill",
+        "Google antitrust DOJ",
+        "EU AI Act enforcement",
+        "GDPR fine enforcement",
+        "deepfake AI generated content law",
+        "app store DMA",
+    ],
     detection_prompt="""You are a senior policy analyst specializing in Big Tech regulation.
 Given the following recent news headlines and descriptions, identify emerging signals
 that could impact Google's policy strategy.
