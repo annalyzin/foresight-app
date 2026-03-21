@@ -132,6 +132,41 @@ def _find_last_complete_object(text: str, start: int) -> int:
     return last_complete_end
 
 
+def _repair_truncated_json(text: str) -> str:
+    """Attempt to make truncated JSON valid by closing open strings and containers."""
+    stack: list[str] = []
+    in_string = False
+    escape = False
+
+    for ch in text:
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_string:
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch in ("{", "["):
+            stack.append(ch)
+        elif ch == "}":
+            if stack and stack[-1] == "{":
+                stack.pop()
+        elif ch == "]":
+            if stack and stack[-1] == "[":
+                stack.pop()
+
+    suffix = ""
+    if in_string:
+        suffix += '"'
+    for bracket in reversed(stack):
+        suffix += "}" if bracket == "{" else "]"
+    return text + suffix
+
+
 def chat_json(
     prompt: str,
     system: str = "You are a helpful policy analyst. Respond with valid JSON only — no markdown fences, no explanation, just the JSON array or object. Output minified/compact JSON with no extra whitespace or newlines.",
@@ -178,5 +213,16 @@ def chat_json(
                 return json.loads(salvaged)
             except json.JSONDecodeError:
                 pass
+
+    # Last resort — repair truncated JSON by closing open strings/containers
+    repaired = _repair_truncated_json(text)
+    try:
+        result = json.loads(repaired)
+        logging.warning(
+            "Repaired truncated JSON (len=%d) by closing open containers", len(text)
+        )
+        return result
+    except json.JSONDecodeError:
+        pass
 
     raise ValueError(f"Could not parse JSON from LLM response: {text[:300]}")

@@ -115,6 +115,24 @@ class TestChatJson:
         assert result == [{"body": "use {x} and {y}"}, {"body": "use {z}"}]
 
 
+class TestRepairTruncatedJson:
+    def test_repair_single_truncated_object(self):
+        """First object truncated mid-string — repair closes string and containers."""
+        result = _call_chat_json('[{"a":1,"b":"trunc')
+        assert result == [{"a": 1, "b": "trunc"}]
+
+    def test_repair_truncated_mid_nested_array(self):
+        """Truncated inside a nested array — repair recovers object with partial array."""
+        text = '[{"topic":"AI","related":[{"id":1},{"id":2'
+        result = _call_chat_json(text)
+        assert result == [{"topic": "AI", "related": [{"id": 1}, {"id": 2}]}]
+
+    def test_repair_no_complete_objects_with_partial_fields(self):
+        """Truncated mid-key — naive repair may produce invalid JSON; fallback raises."""
+        with pytest.raises(ValueError, match="Could not parse"):
+            _call_chat_json('[{"a":1,"b')
+
+
 class TestSanitizeError:
     def test_html_error_stripped(self):
         from engine.llm import _sanitize_error
