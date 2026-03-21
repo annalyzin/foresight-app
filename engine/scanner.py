@@ -7,7 +7,7 @@ from typing import Callable, List, Optional
 from config.base import DomainConfig
 from data.models import Signal, SourceArticle
 from data.store import get_existing_topics
-from engine.llm import chat_json
+from engine.llm import chat_json, _sanitize_error
 from engine.news import fetch_articles, format_articles_for_llm
 
 
@@ -94,9 +94,10 @@ def detect_signals(
             if on_progress:
                 on_progress(batch_index, total_batches, batch_categories, None)
         except Exception as e:
-            logging.warning("Batch %s failed: %s", batch_categories, e)
+            error_msg = _sanitize_error(e)
+            logging.warning("Batch %s failed: %s", batch_categories, error_msg)
             if on_progress:
-                on_progress(batch_index, total_batches, batch_categories, str(e))
+                on_progress(batch_index, total_batches, batch_categories, error_msg)
             continue
 
     return all_signals

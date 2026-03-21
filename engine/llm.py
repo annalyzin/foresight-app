@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
+import time
 
 from dotenv import load_dotenv
 from openai import OpenAI
@@ -15,30 +17,61 @@ BASE_URL = "https://litellm-stg.aip.gov.sg"
 _client: OpenAI | None = None
 
 
+def _sanitize_error(e: Exception) -> str:
+    """Strip HTML from error messages (e.g., nginx 502 pages)."""
+    msg = str(e)
+    if "<html" in msg.lower():
+        cleaned = re.sub(r"<[^>]+>", "", msg).strip()
+        # Collapse whitespace
+        cleaned = re.sub(r"\s+", " ", cleaned)
+        return cleaned or type(e).__name__
+    return msg
+
+
+MAX_RETRIES = 3
+RETRY_BACKOFF = [5, 15, 30]  # seconds between retries
+REQUEST_TIMEOUT = 120  # seconds
+
+
 def get_client() -> OpenAI:
     global _client
     if _client is None:
         api_key = os.getenv("LITELLM_API_KEY")
         if not api_key:
             raise ValueError("LITELLM_API_KEY not set in environment")
-        _client = OpenAI(api_key=api_key, base_url=BASE_URL)
+        _client = OpenAI(api_key=api_key, base_url=BASE_URL, timeout=REQUEST_TIMEOUT)
     return _client
 
 
 def chat(prompt: str, system: str = "You are a helpful policy analyst.", max_tokens: int = 4096) -> str:
     client = get_client()
-    response = client.chat.completions.create(
-        model=MODEL,
-        messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompt},
-        ],
-        temperature=0.3,
-        max_tokens=max_tokens,
-    )
-    if not response.choices:
-        raise ValueError("LLM returned response with no choices")
-    return response.choices[0].message.content
+    last_error = None
+
+    for attempt in range(MAX_RETRIES):
+        try:
+            response = client.chat.completions.create(
+                model=MODEL,
+                messages=[
+                    {"role": "system", "content": system},
+                    {"role": "user", "content": prompt},
+                ],
+                temperature=0.3,
+                max_tokens=max_tokens,
+            )
+            if not response.choices:
+                raise ValueError("LLM returned response with no choices")
+            return response.choices[0].message.content
+        except Exception as e:
+            last_error = e
+            if attempt < MAX_RETRIES - 1:
+                wait = RETRY_BACKOFF[attempt]
+                logging.warning(
+                    "LLM request failed (attempt %d/%d), retrying in %ds: %s",
+                    attempt + 1, MAX_RETRIES, wait, _sanitize_error(e),
+                )
+                time.sleep(wait)
+
+    raise last_error
 
 
 def chat_json(prompt: str, system: str = "You are a helpful policy analyst. Respond with valid JSON only — no markdown fences, no explanation, just the JSON array or object.", max_tokens: int = 4096) -> list | dict:
