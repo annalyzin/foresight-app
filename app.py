@@ -74,8 +74,10 @@ if scan_clicked:
         st.write("Analyzing articles with LLM (this may take a few minutes)...")
         progress_bar = st.progress(0)
         batch_errors = []
+        scan_total_batches = [0]
 
         def _on_batch_start(batch_index, total_batches, batch_categories):
+            scan_total_batches[0] = total_batches
             pct = batch_index / total_batches
             progress_bar.progress(
                 pct,
@@ -113,7 +115,7 @@ if scan_clicked:
         else:
             if batch_errors:
                 st.warning(
-                    f"{len(batch_errors)} of {len(batch_errors) + len(new_signals)} "
+                    f"{len(batch_errors)} of {scan_total_batches[0]} "
                     f"batch(es) failed. Partial results shown below."
                 )
             st.write(f"Detected {len(new_signals)} signals. Scoring...")

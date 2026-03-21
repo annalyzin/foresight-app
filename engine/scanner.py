@@ -79,7 +79,7 @@ def detect_signals(
     all_signals = []
 
     # Process categories in batches to avoid output truncation
-    batch_size = 2
+    batch_size = 1
     total_batches = math.ceil(len(config.categories) / batch_size)
 
     for i in range(0, len(config.categories), batch_size):

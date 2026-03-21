@@ -11,8 +11,8 @@ from openai import OpenAI
 
 load_dotenv()
 
-MODEL = "claude-sonnet-4-6-asia-southeast1"
-BASE_URL = "https://litellm-stg.aip.gov.sg"
+MODEL = os.getenv("LITELLM_MODEL", "claude-sonnet-4-6-asia-southeast1")
+BASE_URL = os.getenv("LITELLM_BASE_URL", "https://litellm-stg.aip.gov.sg")
 
 _client: OpenAI | None = None
 

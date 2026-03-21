@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-import re
 import calendar
+import logging
+import re
 from datetime import datetime, timedelta, timezone
 from urllib.parse import urlparse
 from typing import Dict, List
@@ -53,8 +54,8 @@ def fetch_articles(config: DomainConfig, days: int = 7) -> List[Dict]:
                     "published": pub_date.isoformat() if pub_date else "",
                     "source": urlparse(feed_url).netloc or feed_url,
                 })
-        except Exception:
-            # Skip failed feeds silently
+        except Exception as e:
+            logging.warning("Failed to fetch feed %s: %s", feed_url, e)
             continue
 
     return articles

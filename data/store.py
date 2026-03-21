@@ -41,8 +41,8 @@ def load_signals(domain: str) -> List[Signal]:
         return []
     try:
         return [Signal(**item) for item in data]
-    except Exception:
-        logging.warning("Invalid signal data in %s — returning empty list", path)
+    except Exception as e:
+        logging.warning("Invalid signal data in %s: %s — returning empty list", path, e)
         return []
 
 
