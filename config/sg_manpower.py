@@ -13,12 +13,6 @@ SG_MANPOWER_CONFIG = DomainConfig(
         "Wage Policy & Progressive Wages",
         "Workplace Safety & Health",
     ],
-    key_actors=[
-        "Ministry of Manpower (MOM)", "NTUC", "Singapore Business Federation",
-        "SkillsFuture Singapore", "Workforce Singapore (WSG)", "TAFEP",
-        "CPF Board", "ILO", "Grab", "Gojek", "Deliveroo",
-        "Singapore Parliament", "Economic Development Board (EDB)",
-    ],
     feeds=[
         # Google News RSS — broad
         "https://news.google.com/rss/search?q=Singapore+workforce+policy&hl=en&gl=SG&ceid=SG:en",

@@ -1,3 +1,4 @@
+import os
 import streamlit as st
 import plotly.graph_objects as go
 import pandas as pd
@@ -5,6 +6,7 @@ from datetime import datetime
 
 from config import DOMAINS
 from data.store import append_signals, load_signals
+from engine.news import format_feed_source
 
 st.set_page_config(page_title="TrendMill", page_icon="🏃‍♀️💨", layout="wide")
 
@@ -34,34 +36,14 @@ with st.sidebar:
     # ── Sources ──
     st.subheader("Feed Sources")
     for feed_url in config.feeds:
-        try:
-            domain = feed_url.split("/")[2]
-            display = domain.replace("www.", "").replace("news.", "")
-            if "google.com" in domain:
-                if "q=" in feed_url:
-                    query = feed_url.split("q=")[1].split("&")[0].replace("+", " ")
-                    display = f"Google News: {query}"
-                else:
-                    display = "Google News"
-            elif "reddit.com" in domain:
-                parts = feed_url.rstrip("/").split("/")
-                r_idx = parts.index("r") if "r" in parts else -1
-                sub = parts[r_idx + 1] if r_idx >= 0 and r_idx + 1 < len(parts) else "reddit"
-                display = f"Reddit: r/{sub}"
-            elif "hnrss.org" in domain:
-                if "q=" in feed_url:
-                    query = feed_url.split("q=")[1].split("&")[0].replace("+", " ")
-                    display = f"HackerNews: {query}"
-                else:
-                    display = "HackerNews"
-            elif "arxiv.org" in domain:
-                display = "arXiv: cs.CY"
-            st.markdown(f"- {display}")
-        except Exception:
-            st.markdown(f"- {feed_url}")
+        st.markdown(f"- {format_feed_source(feed_url)}")
 
 # ── Run scan ─────────────────────────────────────────────────────────────────
 if scan_clicked:
+    if not os.getenv("OPENROUTER_API_KEY"):
+        st.error("OPENROUTER_API_KEY not set. Add it to your .env file.")
+        st.stop()
+
     with st.status("Scanning for signals...", expanded=True) as status:
         st.write("Fetching news from RSS feeds...")
         from engine.scanner import detect_signals
@@ -108,6 +90,7 @@ if scan_clicked:
 
         new_signals = detect_signals(
             config,
+            articles=articles,
             on_batch_start=_on_batch_start,
             on_batch_end=_on_batch_end,
             on_retry=_on_retry,

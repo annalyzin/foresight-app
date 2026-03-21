@@ -6,13 +6,15 @@ import os
 import re
 import time
 
+from typing import Callable
+
 from dotenv import load_dotenv
 from openai import OpenAI
 
 load_dotenv()
 
-MODEL = os.getenv("LITELLM_MODEL", "claude-sonnet-4-6-asia-southeast1")
-BASE_URL = os.getenv("LITELLM_BASE_URL", "https://litellm-stg.aip.gov.sg")
+MODEL = os.getenv("OPENROUTER_MODEL", "google/gemini-2.5-flash-preview")
+BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 
 _client: OpenAI | None = None
 
@@ -36,9 +38,9 @@ REQUEST_TIMEOUT = 60  # seconds
 def get_client() -> OpenAI:
     global _client
     if _client is None:
-        api_key = os.getenv("LITELLM_API_KEY")
+        api_key = os.getenv("OPENROUTER_API_KEY")
         if not api_key:
-            raise ValueError("LITELLM_API_KEY not set in environment")
+            raise ValueError("OPENROUTER_API_KEY not set in environment")
         _client = OpenAI(api_key=api_key, base_url=BASE_URL, timeout=REQUEST_TIMEOUT)
     return _client
 
@@ -47,7 +49,7 @@ def chat(
     prompt: str,
     system: str = "You are a helpful policy analyst.",
     max_tokens: int = 4096,
-    on_retry: "Callable[[int, int, str], None] | None" = None,
+    on_retry: Callable[[int, int, str], None] | None = None,
 ) -> str:
     """Call the LLM with automatic retries.
 
@@ -76,7 +78,7 @@ def chat(
             last_error = e
             error_msg = _sanitize_error(e)
             if attempt < MAX_RETRIES - 1:
-                wait = RETRY_BACKOFF[attempt]
+                wait = RETRY_BACKOFF[min(attempt, len(RETRY_BACKOFF) - 1)]
                 logging.warning(
                     "LLM request failed (attempt %d/%d), retrying in %ds: %s",
                     attempt + 1, MAX_RETRIES, wait, error_msg,
@@ -85,6 +87,8 @@ def chat(
                     on_retry(attempt + 1, MAX_RETRIES, error_msg)
                 time.sleep(wait)
 
+    if last_error is None:
+        raise RuntimeError("LLM chat() called with MAX_RETRIES=0")
     raise last_error
 
 
@@ -92,7 +96,7 @@ def chat_json(
     prompt: str,
     system: str = "You are a helpful policy analyst. Respond with valid JSON only — no markdown fences, no explanation, just the JSON array or object.",
     max_tokens: int = 4096,
-    on_retry: "Callable[[int, int, str], None] | None" = None,
+    on_retry: Callable[[int, int, str], None] | None = None,
 ) -> list | dict:
     raw = chat(prompt, system, max_tokens=max_tokens, on_retry=on_retry)
     if not raw or not raw.strip():

@@ -13,11 +13,6 @@ BIG_TECH_CONFIG = DomainConfig(
         "Competition & Market Power",
         "Taxation & Digital Services",
     ],
-    key_actors=[
-        "EU Commission", "US DOJ", "FTC", "UK CMA", "Australia ACCC",
-        "US Congress", "European Parliament", "Google", "Meta", "Apple",
-        "Amazon", "Microsoft", "OpenAI", "UNESCO", "OECD",
-    ],
     feeds=[
         # Google News RSS — broad
         "https://news.google.com/rss/search?q=big+tech+regulation&hl=en&gl=US&ceid=US:en",

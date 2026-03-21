@@ -10,6 +10,5 @@ class DomainConfig:
     persona: str
     description: str
     categories: List[str]  # Broad themes (internal context)
-    key_actors: List[str]
     feeds: List[str]
     detection_prompt: str

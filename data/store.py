@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import tempfile
 from datetime import datetime
 from pathlib import Path
@@ -18,7 +19,7 @@ def _ensure_dir():
 
 
 def _signals_path(domain: str) -> Path:
-    slug = domain.lower().replace(" ", "_")
+    slug = re.sub(r"[^a-z0-9_]", "_", domain.lower())
     return SIGNALS_DIR / f"{slug}_signals.json"
 
 
@@ -56,13 +57,22 @@ def save_signals(domain: str, signals: List[Signal]):
             json.dump(data, f, indent=2, default=_serialize)
         os.replace(tmp, str(path))
     except BaseException:
-        os.unlink(tmp)
+        # os.fdopen may not have been reached — close fd if still open
+        try:
+            os.close(fd)
+        except OSError:
+            pass  # already closed by os.fdopen/with
         raise
+    finally:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
 
 
 def append_signals(domain: str, new_signals: List[Signal]):
     existing = load_signals(domain)
-    existing.extend(new_signals)
+    seen = {(s.topic, s.title) for s in existing}
+    unique_new = [s for s in new_signals if (s.topic, s.title) not in seen]
+    existing.extend(unique_new)
     save_signals(domain, existing)
 
 

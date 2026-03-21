@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 from typing import List
 
 from data.models import Signal
@@ -13,7 +12,7 @@ def score_signal(signal: Signal) -> Signal:
     source_diversity = len(source_names)
 
     raw_score = (article_count * 3) + source_diversity - 3
-    signal.strength_score = max(1, min(10, math.floor(raw_score + 0.5)))
+    signal.strength_score = max(1, min(10, round(raw_score)))
 
     # Build reasoning
     if article_count == 0:

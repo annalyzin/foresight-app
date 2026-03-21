@@ -35,13 +35,35 @@ def sample_config() -> DomainConfig:
         persona="Google Policy Strategist",
         description="Test domain",
         categories=["Antitrust", "Privacy", "AI Governance"],
-        key_actors=["Google", "Meta"],
         feeds=[
             "https://news.google.com/rss/search?q=big+tech",
             "https://feeds.reuters.com/technology",
         ],
         detection_prompt="Categories: {categories}\nTopics: {existing_topics}\nArticles:\n{articles}",
     )
+
+
+@pytest.fixture
+def make_signal():
+    """Factory fixture for creating test Signal objects."""
+    def _make(topic="test topic", title="Test Signal", articles=None, **kwargs):
+        source_articles = []
+        if articles:
+            for t, src in articles:
+                source_articles.append(SourceArticle(title=t, url="", source=src))
+        defaults = dict(
+            domain="Test",
+            topic=topic,
+            categories=["Cat"],
+            title=title,
+            description="desc",
+            strength_score=5,
+            reasoning="",
+            source_articles=source_articles,
+        )
+        defaults.update(kwargs)
+        return Signal(**defaults)
+    return _make
 
 
 @pytest.fixture

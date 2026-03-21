@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import math
 from typing import Callable, List, Optional
 
 from config.base import DomainConfig
@@ -13,6 +12,9 @@ from engine.news import fetch_articles, format_articles_for_llm
 
 def _parse_signals(results, config: DomainConfig) -> List[Signal]:
     """Parse LLM results into Signal objects."""
+    if not config.categories:
+        return []
+
     if isinstance(results, dict):
         results = results.get("signals", [results])
 
@@ -54,6 +56,7 @@ def _parse_signals(results, config: DomainConfig) -> List[Signal]:
 
 def detect_signals(
     config: DomainConfig,
+    articles: Optional[List[dict]] = None,
     on_batch_start: Optional[Callable[[int, int, List[str]], None]] = None,
     on_batch_end: Optional[Callable[[int, int, List[str], Optional[str]], None]] = None,
     on_retry: Optional[Callable[[int, int, List[str], int, int, str], None]] = None,
@@ -62,6 +65,7 @@ def detect_signals(
 
     Args:
         config: Domain configuration.
+        articles: Pre-fetched articles. If None, articles are fetched internally.
         on_batch_start: Called before each batch with
             (batch_index, total_batches, batch_categories).
         on_batch_end: Called after each batch with
@@ -69,7 +73,8 @@ def detect_signals(
         on_retry: Called before each LLM retry with
             (batch_index, total_batches, batch_categories, attempt, max_retries, error_msg).
     """
-    articles = fetch_articles(config)
+    if articles is None:
+        articles = fetch_articles(config)
     articles_text = format_articles_for_llm(articles)
 
     # Load existing topics to inject into prompt for consistency
@@ -81,13 +86,11 @@ def detect_signals(
 
     all_signals = []
 
-    # Process categories in batches to avoid output truncation
-    batch_size = 1
-    total_batches = math.ceil(len(config.categories) / batch_size)
+    # Process categories one at a time to avoid output truncation
+    total_batches = len(config.categories)
 
-    for i in range(0, len(config.categories), batch_size):
-        batch_categories = config.categories[i:i + batch_size]
-        batch_index = i // batch_size
+    for batch_index, category in enumerate(config.categories):
+        batch_categories = [category]
 
         if on_batch_start:
             on_batch_start(batch_index, total_batches, batch_categories)
