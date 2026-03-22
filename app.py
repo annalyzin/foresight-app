@@ -245,7 +245,7 @@ if signals:
 
         fig.update_layout(
             yaxis=dict(title="Strength Score", range=[0, 10.5]),
-            xaxis=dict(title="Date", tickformat="%Y-%m-%d", dtick=86400000),
+            xaxis=dict(title="Date", tickformat="%Y-%m-%d"),
             height=500,
             margin=dict(l=40, r=40, t=30, b=40),
             showlegend=False,

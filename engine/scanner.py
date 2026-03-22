@@ -9,6 +9,7 @@ from data.models import Signal, SourceArticle
 from data.store import append_signals, get_existing_topics
 from engine.llm import chat_json, _sanitize_error
 from engine.news import fetch_articles, fetch_gdelt_articles, format_articles_for_llm
+from engine.scorer import score_signals
 
 
 def _parse_signals(results, config: DomainConfig) -> List[Signal]:
@@ -173,6 +174,7 @@ def backfill_signals(
             s.timestamp = midpoint
 
         if signals:
+            signals = score_signals(signals)
             append_signals(config.name, signals)
             total_signals += len(signals)
 

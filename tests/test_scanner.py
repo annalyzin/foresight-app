@@ -275,3 +275,34 @@ class TestBackfillSignals:
         first_call = on_progress.call_args_list[0][0]
         assert first_call[0] == 0  # window_index
         assert first_call[1] >= 4  # total_windows
+
+    @patch("engine.scanner.append_signals")
+    @patch("engine.scanner.score_signals")
+    @patch("engine.scanner.detect_signals")
+    @patch("engine.scanner.fetch_gdelt_articles")
+    def test_backfilled_signals_are_scored(self, mock_gdelt, mock_detect, mock_score, mock_append, config):
+        raw_signals = [
+            Signal(domain="Test Domain", topic="t", categories=["Antitrust"],
+                   title="t", description="d", strength_score=5,
+                   reasoning="r", sources=["s"]),
+        ]
+        scored_signals = [
+            Signal(domain="Test Domain", topic="t", categories=["Antitrust"],
+                   title="t", description="d", strength_score=8,
+                   reasoning="r", sources=["s"]),
+        ]
+        mock_gdelt.return_value = [
+            {"title": "T", "source": "s", "link": "", "description": "", "published": ""},
+        ]
+        mock_detect.return_value = raw_signals
+        mock_score.return_value = scored_signals
+
+        start = datetime(2025, 1, 1)
+        end = datetime(2025, 4, 1)
+        backfill_signals(config, start, end)
+
+        mock_score.assert_called()
+        # Verify scored signals (not raw) were passed to append
+        mock_append.assert_called()
+        appended = mock_append.call_args[0][1]
+        assert appended[0].strength_score == 8

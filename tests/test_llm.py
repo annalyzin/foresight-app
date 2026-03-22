@@ -128,9 +128,47 @@ class TestRepairTruncatedJson:
         assert result == [{"topic": "AI", "related": [{"id": 1}, {"id": 2}]}]
 
     def test_repair_no_complete_objects_with_partial_fields(self):
-        """Truncated mid-key — naive repair may produce invalid JSON; fallback raises."""
+        """Truncated mid-key — trim-back recovers the complete key-value pair."""
+        result = _call_chat_json('[{"a":1,"b')
+        assert result == [{"a": 1}]
+
+
+class TestTrimBackRecovery:
+    """Strategy 5 — trim back to last comma outside strings, then re-repair."""
+
+    def test_mid_key_truncation(self):
+        result = _call_chat_json('[{"a":1,"b')
+        assert result == [{"a": 1}]
+
+    def test_after_colon_truncation(self):
+        result = _call_chat_json('[{"a":1,"b":')
+        assert result == [{"a": 1}]
+
+    def test_between_objects_mid_key(self):
+        # Strategy 3 (salvage complete objects) catches this before trim-back,
+        # recovering the first complete object inside the array.
+        result = _call_chat_json('[{"a":1},{"b":2,"c')
+        assert result == {"a": 1}
+
+    def test_commas_inside_strings_ignored(self):
+        result = _call_chat_json('[{"a":"x,y,z","b')
+        assert result == [{"a": "x,y,z"}]
+
+    def test_no_commas_outside_strings_raises(self):
         with pytest.raises(ValueError, match="Could not parse"):
-            _call_chat_json('[{"a":1,"b')
+            _call_chat_json('[{"a')
+
+    def test_real_world_nested_truncation(self):
+        """Realistic truncation with nested arrays in a categories field."""
+        text = (
+            '[{"title":"Climate Bill","categories":["environment","policy"],"score":0.9},'
+            '{"title":"Tech Regulation","categories":["technology","law"],"score":0.8},'
+            '{"title":"Health Reform","categories":["health","poli'
+        )
+        result = _call_chat_json(text)
+        assert len(result) == 2
+        assert result[0]["title"] == "Climate Bill"
+        assert result[1]["title"] == "Tech Regulation"
 
 
 class TestSanitizeError:

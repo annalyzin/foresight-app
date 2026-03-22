@@ -167,6 +167,30 @@ def _repair_truncated_json(text: str) -> str:
     return text + suffix
 
 
+def _find_commas_outside_strings(text: str) -> list[int]:
+    """Return indices of all commas in *text* that are outside JSON strings."""
+    commas: list[int] = []
+    in_string = False
+    escape = False
+
+    for i, ch in enumerate(text):
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_string:
+            escape = True
+            continue
+        if ch == '"':
+            in_string = not in_string
+            continue
+        if in_string:
+            continue
+        if ch == ",":
+            commas.append(i)
+
+    return commas
+
+
 def chat_json(
     prompt: str,
     system: str = "You are a helpful policy analyst. Respond with valid JSON only — no markdown fences, no explanation, just the JSON array or object. Output minified/compact JSON with no extra whitespace or newlines.",
@@ -224,5 +248,16 @@ def chat_json(
         return result
     except json.JSONDecodeError:
         pass
+
+    # Strategy 5 — trim back to last comma outside strings, then re-repair
+    commas = _find_commas_outside_strings(text)
+    for pos in reversed(commas):  # rightmost first = maximum data retention
+        try:
+            repaired = _repair_truncated_json(text[:pos])
+            result = json.loads(repaired)
+            logging.warning("Recovered truncated JSON by trimming at position %d", pos)
+            return result
+        except (json.JSONDecodeError, Exception):
+            continue
 
     raise ValueError(f"Could not parse JSON from LLM response: {text[:300]}")
