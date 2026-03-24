@@ -7,7 +7,6 @@ from datetime import datetime, timedelta
 
 from config import DOMAINS
 from data.store import append_signals, load_signals
-from engine.news import format_feed_source
 
 st.set_page_config(page_title="TrendMill", page_icon="🏃‍♀️💨", layout="wide")
 
@@ -21,10 +20,6 @@ with st.sidebar:
 
     st.markdown(f"**Persona:** {config.persona}")
     st.markdown(f"_{config.description}_")
-    st.divider()
-
-    scan_clicked = st.button("🔍 Scan Now", use_container_width=True)
-
     st.divider()
 
     # ── Historical Backfill ──
@@ -48,89 +43,6 @@ with st.sidebar:
     st.subheader("Broad Themes")
     for cat in config.categories:
         st.markdown(f"- {cat}")
-
-    st.divider()
-
-    # ── Sources ──
-    st.subheader("Feed Sources")
-    for feed_url in config.feeds:
-        st.markdown(f"- {format_feed_source(feed_url)}")
-
-# ── Run scan ─────────────────────────────────────────────────────────────────
-if scan_clicked:
-    if not os.getenv("OPENROUTER_API_KEY"):
-        st.error("OPENROUTER_API_KEY not set. Add it to your .env file.")
-        st.stop()
-
-    with st.status("Scanning for signals...", expanded=True) as status:
-        st.write("Fetching news from RSS feeds...")
-        from engine.scanner import detect_signals
-        from engine.scorer import score_signals
-        from engine.news import fetch_articles
-
-        articles = fetch_articles(config)
-        st.write(f"Fetched {len(articles)} articles from feeds.")
-
-        st.write("Analyzing articles with LLM (this may take a few minutes)...")
-        progress_bar = st.progress(0)
-        batch_errors = []
-        scan_total_batches = [0]
-
-        def _on_batch_start(batch_index, total_batches, batch_categories):
-            scan_total_batches[0] = total_batches
-            pct = batch_index / total_batches
-            progress_bar.progress(
-                pct,
-                text=f"Batch {batch_index + 1}/{total_batches}: "
-                     f"{', '.join(batch_categories)}...",
-            )
-
-        def _on_batch_end(batch_index, total_batches, batch_categories, error):
-            pct = (batch_index + 1) / total_batches
-            progress_bar.progress(pct, text=f"Batch {batch_index + 1}/{total_batches}")
-            if error:
-                batch_errors.append((batch_categories, error))
-                st.warning(
-                    f"Batch failed for themes **{', '.join(batch_categories)}**: {error}"
-                )
-            else:
-                st.write(
-                    f"Batch {batch_index + 1}/{total_batches} done "
-                    f"({', '.join(batch_categories)})"
-                )
-
-        def _on_retry(batch_index, total_batches, batch_categories, attempt, max_retries, error_msg):
-            st.write(
-                f"Batch {batch_index + 1}/{total_batches} "
-                f"({', '.join(batch_categories)}) — "
-                f"retry {attempt}/{max_retries}: {error_msg}"
-            )
-
-        new_signals = detect_signals(
-            config,
-            articles=articles,
-            on_batch_start=_on_batch_start,
-            on_batch_end=_on_batch_end,
-            on_retry=_on_retry,
-        )
-        progress_bar.empty()
-
-        if not new_signals and batch_errors:
-            st.error(
-                f"All {len(batch_errors)} batches failed — no signals detected. "
-                "Check your API key and network connection."
-            )
-            status.update(label="Scan failed", state="error")
-        else:
-            if batch_errors:
-                st.warning(
-                    f"{len(batch_errors)} of {scan_total_batches[0]} "
-                    f"batch(es) failed. Partial results shown below."
-                )
-            st.write(f"Detected {len(new_signals)} signals. Scoring...")
-            new_signals = score_signals(new_signals)
-            append_signals(domain_name, new_signals)
-            status.update(label="Scan complete!", state="complete")
 
 # ── Run backfill ──────────────────────────────────────────────────────────────
 if backfill_clicked:
@@ -254,7 +166,7 @@ if signals:
     else:
         st.info("No signals match the selected topics.")
 else:
-    st.info("No signals yet. Click **Scan Now** to start.")
+    st.info("No signals yet. Use **Backfill** to start.")
 
 # ── Topic Drill-Down ─────────────────────────────────────────────────────────
 st.header("Topic Drill-Down")

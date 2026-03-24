@@ -8,7 +8,7 @@ from config.base import DomainConfig
 from data.models import Signal, SourceArticle
 from data.store import append_signals, get_existing_topics
 from engine.llm import chat_json, _sanitize_error
-from engine.news import fetch_articles, fetch_gdelt_articles, format_articles_for_llm
+from engine.news import fetch_gdelt_articles, format_articles_for_llm
 from engine.scorer import score_signals
 
 
@@ -58,16 +58,16 @@ def _parse_signals(results, config: DomainConfig) -> List[Signal]:
 
 def detect_signals(
     config: DomainConfig,
-    articles: Optional[List[dict]] = None,
+    articles: List[dict],
     on_batch_start: Optional[Callable[[int, int, List[str]], None]] = None,
     on_batch_end: Optional[Callable[[int, int, List[str], Optional[str]], None]] = None,
     on_retry: Optional[Callable[[int, int, List[str], int, int, str], None]] = None,
 ) -> List[Signal]:
-    """Fetch news and use LLM to detect emerging signals with topic labels.
+    """Use LLM to detect emerging signals with topic labels.
 
     Args:
         config: Domain configuration.
-        articles: Pre-fetched articles. If None, articles are fetched internally.
+        articles: Pre-fetched articles to analyze.
         on_batch_start: Called before each batch with
             (batch_index, total_batches, batch_categories).
         on_batch_end: Called after each batch with
@@ -75,8 +75,6 @@ def detect_signals(
         on_retry: Called before each LLM retry with
             (batch_index, total_batches, batch_categories, attempt, max_retries, error_msg).
     """
-    if articles is None:
-        articles = fetch_articles(config)
     articles_text = format_articles_for_llm(articles)
 
     # Load existing topics to inject into prompt for consistency

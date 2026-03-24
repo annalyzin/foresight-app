@@ -13,35 +13,6 @@ SG_MANPOWER_CONFIG = DomainConfig(
         "Wage Policy & Progressive Wages",
         "Workplace Safety & Health",
     ],
-    feeds=[
-        # Google News RSS — broad
-        "https://news.google.com/rss/search?q=Singapore+workforce+policy&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+foreign+workers&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+gig+economy&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+wages+employment&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+automation+jobs&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+skills+training&hl=en&gl=SG&ceid=SG:en",
-        # Google News RSS — category-specific
-        "https://news.google.com/rss/search?q=Singapore+employment+pass+COMPASS&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+progressive+wage+model&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+workplace+safety+construction&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+retirement+age+CPF&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+SkillsFuture+reskilling&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+platform+workers+Grab+delivery&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+AI+jobs+displacement&hl=en&gl=SG&ceid=SG:en",
-        "https://news.google.com/rss/search?q=Singapore+MOM+manpower+policy&hl=en&gl=SG&ceid=SG:en",
-        # CNA
-        "https://www.channelnewsasia.com/api/v1/rss-outbound-feed?_format=xml&category=6511",
-        # Reddit
-        "https://www.reddit.com/r/singapore/.rss",
-        "https://www.reddit.com/r/askSingapore/.rss",
-        # HackerNews
-        "https://hnrss.org/newest?q=Singapore+workforce",
-        "https://hnrss.org/newest?q=gig+economy+regulation",
-        "https://hnrss.org/newest?q=Singapore+AI+jobs",
-        # ILO
-        "https://www.ilo.org/feed/news/en",
-    ],
     keywords=[
         "Singapore workforce policy",
         "Singapore foreign workers",

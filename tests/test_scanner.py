@@ -12,6 +12,11 @@ from engine.scanner import _build_windows, _parse_signals, backfill_signals, det
 from datetime import datetime
 
 
+SAMPLE_ARTICLES = [
+    {"title": "Test", "source": "src", "link": "", "description": "", "published": ""},
+]
+
+
 @pytest.fixture
 def config():
     return DomainConfig(
@@ -19,7 +24,6 @@ def config():
         persona="Analyst",
         description="Test",
         categories=["Antitrust", "Privacy", "AI Governance"],
-        feeds=["https://feed1.com/rss", "https://feed2.com/rss"],
         detection_prompt="Categories: {categories}\nTopics: {existing_topics}\nArticles:\n{articles}",
         keywords=["tech antitrust", "data privacy"],
     )
@@ -71,7 +75,7 @@ class TestParseSignals:
     def test_empty_categories_returns_empty(self):
         empty_config = DomainConfig(
             name="Test", persona="A", description="T",
-            categories=[], feeds=[], detection_prompt="",
+            categories=[], detection_prompt="",
         )
         result = _parse_signals([{"topic": "t", "title": "t"}], empty_config)
         assert result == []
@@ -92,28 +96,19 @@ class TestParseSignals:
 
 class TestDetectSignals:
     @patch("engine.scanner.chat_json")
-    @patch("engine.scanner.fetch_articles")
     @patch("engine.scanner.get_existing_topics", return_value=set())
-    def test_pipeline(self, mock_topics, mock_fetch, mock_chat, config):
-        mock_fetch.return_value = [
-            {"title": "Test", "source": "src", "link": "", "description": "", "published": ""},
-        ]
+    def test_pipeline(self, mock_topics, mock_chat, config):
         mock_chat.return_value = [
             {"topic": "AI rules", "title": "New AI rules", "description": "d",
              "categories": ["AI Governance"], "sources": ["Reuters"]},
         ]
-        signals = detect_signals(config)
+        signals = detect_signals(config, articles=SAMPLE_ARTICLES)
         assert len(signals) >= 1
         assert all(isinstance(s, Signal) for s in signals)
-        mock_fetch.assert_called_once_with(config)
 
     @patch("engine.scanner.chat_json")
-    @patch("engine.scanner.fetch_articles")
     @patch("engine.scanner.get_existing_topics", return_value=set())
-    def test_batch_failure_continues(self, mock_topics, mock_fetch, mock_chat, config):
-        mock_fetch.return_value = [
-            {"title": "Test", "source": "src", "link": "", "description": "", "published": ""},
-        ]
+    def test_batch_failure_continues(self, mock_topics, mock_chat, config):
         call_count = 0
 
         def side_effect(*args, **kwargs):
@@ -129,23 +124,19 @@ class TestDetectSignals:
         mock_chat.side_effect = side_effect
 
         with patch("engine.scanner.st", create=True):
-            signals = detect_signals(config)
+            signals = detect_signals(config, articles=SAMPLE_ARTICLES)
         # First batch fails, but other batches succeed
         assert len(signals) >= 1
 
     @patch("engine.scanner.chat_json")
-    @patch("engine.scanner.fetch_articles")
     @patch("engine.scanner.get_existing_topics", return_value=set())
-    def test_callbacks_invoked(self, mock_topics, mock_fetch, mock_chat, config):
-        mock_fetch.return_value = [
-            {"title": "T", "source": "s", "link": "", "description": "", "published": ""},
-        ]
+    def test_callbacks_invoked(self, mock_topics, mock_chat, config):
         mock_chat.return_value = [
             {"topic": "t", "title": "t", "description": "d", "categories": ["Privacy"]},
         ]
         on_start = MagicMock()
         on_end = MagicMock()
-        detect_signals(config, on_batch_start=on_start, on_batch_end=on_end)
+        detect_signals(config, articles=SAMPLE_ARTICLES, on_batch_start=on_start, on_batch_end=on_end)
         assert on_start.call_count == len(config.categories)
         assert on_end.call_count == len(config.categories)
         # First call should be (0, total_batches, [first_category])
@@ -155,40 +146,32 @@ class TestDetectSignals:
 
     @patch("engine.scanner.chat_json")
     @patch("engine.scanner.get_existing_topics", return_value=set())
-    def test_pre_fetched_articles_skip_fetch(self, mock_topics, mock_chat, config):
+    def test_pre_fetched_articles(self, mock_topics, mock_chat, config):
         mock_chat.return_value = [
             {"topic": "t", "title": "t", "description": "d", "categories": ["Privacy"]},
         ]
         pre_fetched = [
             {"title": "Pre", "source": "s", "link": "", "description": "", "published": ""},
         ]
-        with patch("engine.scanner.fetch_articles") as mock_fetch:
-            detect_signals(config, articles=pre_fetched)
-            mock_fetch.assert_not_called()
+        signals = detect_signals(config, articles=pre_fetched)
+        assert len(signals) >= 1
 
     @patch("engine.scanner.chat_json")
-    @patch("engine.scanner.fetch_articles")
     @patch("engine.scanner.get_existing_topics", return_value=set())
-    def test_empty_categories_returns_empty(self, mock_topics, mock_fetch, mock_chat):
+    def test_empty_categories_returns_empty(self, mock_topics, mock_chat):
         empty_config = DomainConfig(
             name="Test", persona="A", description="T",
-            categories=[], feeds=["https://f.com/rss"],
-            detection_prompt="",
+            categories=[], detection_prompt="",
         )
-        mock_fetch.return_value = []
-        result = detect_signals(empty_config)
+        result = detect_signals(empty_config, articles=[])
         assert result == []
         mock_chat.assert_not_called()
 
     @patch("engine.scanner.chat_json")
-    @patch("engine.scanner.fetch_articles")
     @patch("engine.scanner.get_existing_topics", return_value=set())
-    def test_all_batches_fail(self, mock_topics, mock_fetch, mock_chat, config):
-        mock_fetch.return_value = [
-            {"title": "T", "source": "s", "link": "", "description": "", "published": ""},
-        ]
+    def test_all_batches_fail(self, mock_topics, mock_chat, config):
         mock_chat.side_effect = RuntimeError("LLM down")
-        result = detect_signals(config)
+        result = detect_signals(config, articles=SAMPLE_ARTICLES)
         assert result == []
 
 

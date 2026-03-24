@@ -13,42 +13,6 @@ BIG_TECH_CONFIG = DomainConfig(
         "Competition & Market Power",
         "Taxation & Digital Services",
     ],
-    feeds=[
-        # Google News RSS — broad
-        "https://news.google.com/rss/search?q=big+tech+regulation&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=tech+antitrust&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=data+privacy+law&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=youth+online+safety+bill&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=digital+services+tax&hl=en&gl=US&ceid=US:en",
-        # Google News RSS — category-specific
-        "https://news.google.com/rss/search?q=AI+regulation+policy+governance&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=AI+model+ban+safety+enforcement&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=content+moderation+regulation&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=deepfake+AI+generated+content+law&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=Google+antitrust+DOJ&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=Apple+Google+app+store+DMA&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=GDPR+fine+enforcement&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=children+social+media+ban+age+verification&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=EU+AI+Act+enforcement&hl=en&gl=US&ceid=US:en",
-        "https://news.google.com/rss/search?q=tech+platform+competition+interoperability&hl=en&gl=US&ceid=US:en",
-        # Reuters
-        "https://www.reutersagency.com/feed/?taxonomy=best-sectors&post_type=best&best-sectors=tech",
-        # Reddit
-        "https://www.reddit.com/r/technology/.rss",
-        "https://www.reddit.com/r/privacy/.rss",
-        "https://www.reddit.com/r/technews/.rss",
-        # HackerNews
-        "https://hnrss.org/newest?q=big+tech+regulation",
-        "https://hnrss.org/newest?q=AI+governance",
-        "https://hnrss.org/newest?q=AI+ban",
-        "https://hnrss.org/newest?q=antitrust+Google",
-        "https://hnrss.org/newest?q=content+moderation",
-        "https://hnrss.org/newest?q=data+privacy+GDPR",
-        # Think tanks & orgs
-        "https://www.eff.org/rss/updates.xml",
-        # arXiv
-        "https://rss.arxiv.org/rss/cs.CY",
-    ],
     keywords=[
         "big tech regulation",
         "tech antitrust",
