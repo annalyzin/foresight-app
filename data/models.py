@@ -21,7 +21,7 @@ class Signal(BaseModel):
     categories: List[str] = Field(default_factory=list)  # Broad themes
     title: str
     description: str
-    strength_score: int = Field(ge=1, le=10)
+    strength_score: int = Field(ge=0)
     reasoning: str
     sources: List[str] = Field(default_factory=list)
     source_url: str = ""

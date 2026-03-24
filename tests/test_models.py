@@ -31,13 +31,17 @@ class TestSignalValidation:
         s = _make_signal(strength_score=10)
         assert s.strength_score == 10
 
-    def test_signal_score_below_min_rejected(self):
-        with pytest.raises(ValidationError):
-            _make_signal(strength_score=0)
+    def test_signal_score_zero_allowed(self):
+        s = _make_signal(strength_score=0)
+        assert s.strength_score == 0
 
-    def test_signal_score_above_max_rejected(self):
+    def test_signal_score_above_ten_allowed(self):
+        s = _make_signal(strength_score=50)
+        assert s.strength_score == 50
+
+    def test_signal_score_negative_rejected(self):
         with pytest.raises(ValidationError):
-            _make_signal(strength_score=11)
+            _make_signal(strength_score=-1)
 
     def test_signal_id_auto_generated(self):
         s1 = _make_signal()

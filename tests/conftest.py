@@ -35,10 +35,6 @@ def sample_config() -> DomainConfig:
         persona="Google Policy Strategist",
         description="Test domain",
         categories=["Antitrust", "Privacy", "AI Governance"],
-        feeds=[
-            "https://news.google.com/rss/search?q=big+tech",
-            "https://feeds.reuters.com/technology",
-        ],
         detection_prompt="Categories: {categories}\nTopics: {existing_topics}\nArticles:\n{articles}",
     )
 
