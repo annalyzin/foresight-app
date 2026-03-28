@@ -10,6 +10,36 @@ from data.store import load_signals
 
 st.set_page_config(page_title="TrendMill", page_icon="🏃‍♀️💨", layout="wide")
 
+# ── Introduction ──────────────────────────────────────────────────────────────
+with st.expander("About TrendMill — How to use this dashboard", expanded=False):
+    st.markdown("""
+**TrendMill** is a weak signal detection dashboard for policy monitoring. It scans
+historical news archives, uses an LLM to identify emerging policy signals, and
+visualizes how those signals evolve over time — helping you spot trends before
+they become mainstream.
+
+#### Getting started
+
+1. **Choose a domain** from the sidebar to set the policy area you want to monitor
+   (e.g. Big Tech regulation).
+2. **Run a backfill** by selecting a date range in the sidebar and clicking
+   **Backfill**. This fetches historical articles from GDELT and runs them through
+   the LLM to detect signals. Longer date ranges take more time.
+3. Once signals are detected, explore them using the two sections below.
+
+#### How to read the results
+
+- **Signal Strength Over Time** — Each line tracks a topic. The y-axis shows how
+  many articles mentioned that topic on a given date. A rising line means growing
+  media attention; a spike may indicate a breaking development. Topics with 3 or
+  fewer data points are hidden to reduce noise. Use the **Filter by topic**
+  dropdown to focus on specific topics.
+- **Topic Drill-Down** — Select any topic to see every signal detected for it,
+  sorted newest-first. Each signal is color-coded by article count:
+  🟢 under 5, 🟡 5–9, 🔴 10+. Expand a signal to read its description,
+  key quotes, and links to all related articles.
+""")
+
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 with st.sidebar:
     st.title("🏃‍♀️💨 TrendMill")
