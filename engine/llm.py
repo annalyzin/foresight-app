@@ -19,7 +19,7 @@ BASE_URL = os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1")
 _client: OpenAI | None = None
 
 
-def _sanitize_error(e: Exception) -> str:
+def sanitize_error(e: Exception) -> str:
     """Strip HTML from error messages (e.g., nginx 502 pages)."""
     msg = str(e)
     if "<html" in msg.lower():
@@ -82,7 +82,7 @@ def chat(
             return choice.message.content
         except Exception as e:
             last_error = e
-            error_msg = _sanitize_error(e)
+            error_msg = sanitize_error(e)
             if attempt < MAX_RETRIES - 1:
                 wait = RETRY_BACKOFF[min(attempt, len(RETRY_BACKOFF) - 1)]
                 logging.warning(
@@ -257,7 +257,7 @@ def chat_json(
             result = json.loads(repaired)
             logging.warning("Recovered truncated JSON by trimming at position %d", pos)
             return result
-        except (json.JSONDecodeError, Exception):
+        except Exception:
             continue
 
     raise ValueError(f"Could not parse JSON from LLM response: {text[:300]}")

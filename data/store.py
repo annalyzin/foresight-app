@@ -100,7 +100,7 @@ def save_signals(domain: str, signals: List[Signal]):
         with os.fdopen(fd, "w") as f:
             json.dump(data, f, indent=2, default=_serialize)
         os.replace(tmp, str(path))
-    except BaseException:
+    except Exception:
         # os.fdopen may not have been reached — close fd if still open
         try:
             os.close(fd)

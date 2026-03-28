@@ -27,7 +27,6 @@ BIG_TECH_CONFIG = DomainConfig(
         "deepfake AI generated content law",
         "app store DMA",
     ],
-    single_theme=True,  # TEMP: remove after testing
     detection_prompt="""You are a senior policy analyst specializing in Big Tech regulation.
 Given the following recent news headlines and descriptions, identify emerging signals
 that could impact Google's policy strategy.

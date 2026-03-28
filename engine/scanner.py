@@ -7,7 +7,7 @@ from typing import Callable, List, Optional
 from config.base import DomainConfig
 from data.models import Signal, SourceArticle
 from data.store import append_signals, get_existing_topics
-from engine.llm import chat_json, _sanitize_error
+from engine.llm import chat_json, sanitize_error
 from engine.news import fetch_gdelt_articles, format_articles_for_llm
 from engine.scorer import score_signals
 
@@ -45,7 +45,7 @@ def _parse_signals(results, config: DomainConfig) -> List[Signal]:
             categories=categories,
             title=r.get("title", "Untitled Signal"),
             description=r.get("description", ""),
-            strength_score=5,
+            strength_score=0,
             reasoning=r.get("reasoning", ""),
             sources=r.get("sources", []),
             source_url=r.get("source_url", ""),
@@ -110,7 +110,7 @@ def detect_signals(
             if on_batch_end:
                 on_batch_end(batch_index, total_batches, batch_categories, None)
         except Exception as e:
-            error_msg = _sanitize_error(e)
+            error_msg = sanitize_error(e)
             logging.warning("Batch %s failed: %s", batch_categories, error_msg)
             if on_batch_end:
                 on_batch_end(batch_index, total_batches, batch_categories, error_msg)

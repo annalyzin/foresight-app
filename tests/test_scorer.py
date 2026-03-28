@@ -28,7 +28,7 @@ class TestScoreSignal:
         ]))
         assert s.strength_score == 4
 
-    def test_duplicate_sources_counted_once(self, make_signal):
+    def test_three_articles_two_sources(self, make_signal):
         s = score_signal(make_signal(articles=[
             ("a1", "Reuters"), ("a2", "Reuters"), ("a3", "BBC"),
         ]))
@@ -48,7 +48,7 @@ class TestScoreSignal:
         assert len(scored) == 3
         assert all(s.strength_score >= 0 for s in scored)
 
-    def test_articles_with_empty_source_ignored(self, make_signal):
+    def test_articles_with_empty_source_still_counted(self, make_signal):
         s = score_signal(make_signal(articles=[("a1", "Reuters"), ("a2", "")]))
         assert s.strength_score == 2
 

@@ -173,21 +173,21 @@ class TestTrimBackRecovery:
 
 class TestSanitizeError:
     def test_html_error_stripped(self):
-        from engine.llm import _sanitize_error
+        from engine.llm import sanitize_error
         e = Exception("<html><body><h1>502 Bad Gateway</h1></body></html>")
-        result = _sanitize_error(e)
+        result = sanitize_error(e)
         assert "<html" not in result
         assert "502 Bad Gateway" in result
 
     def test_plain_error_unchanged(self):
-        from engine.llm import _sanitize_error
+        from engine.llm import sanitize_error
         e = RuntimeError("Connection timed out")
-        assert _sanitize_error(e) == "Connection timed out"
+        assert sanitize_error(e) == "Connection timed out"
 
     def test_empty_html_body_returns_type_name(self):
-        from engine.llm import _sanitize_error
+        from engine.llm import sanitize_error
         e = ValueError("<html>   </html>")
-        result = _sanitize_error(e)
+        result = sanitize_error(e)
         assert result == "ValueError"
 
 

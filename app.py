@@ -6,7 +6,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 
 from config import DOMAINS
-from data.store import append_signals, load_signals
+from data.store import load_signals
 
 st.set_page_config(page_title="TrendMill", page_icon="🏃‍♀️💨", layout="wide")
 
@@ -198,7 +198,7 @@ if signals:
 
             with st.expander(
                 f"{badge} {signal.title} — "
-                f"{signal.timestamp.strftime('%Y-%m-%d') if isinstance(signal.timestamp, datetime) else signal.timestamp}"
+                f"{signal.timestamp.strftime('%Y-%m-%d')}"
             ):
                 st.markdown(signal.description)
 
