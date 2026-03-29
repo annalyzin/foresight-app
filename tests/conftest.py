@@ -19,7 +19,7 @@ def make_signal():
             categories=["Cat"],
             title=title,
             description="desc",
-            strength_score=5,
+            strength_score=0,
             reasoning="",
             source_articles=source_articles,
         )

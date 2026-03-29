@@ -39,7 +39,7 @@ def fetch_gdelt_articles(
             )
             resp.raise_for_status()
             data = resp.json()
-        except Exception as e:
+        except (requests.RequestException, ValueError) as e:
             logging.warning("GDELT query failed for %r: %s", keyword, e)
             continue
 

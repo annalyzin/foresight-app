@@ -52,7 +52,7 @@ class TestChatJson:
         assert result == [{"a": 1}]
 
     def test_truncated_array_salvage(self):
-        # Truncated mid-object — boundary finder extracts the first complete object as a dict
+        # Truncated mid-object — Strategy 2 ({...} boundary search) extracts the first complete object
         result = _call_chat_json('[{"a": 1}, {"b": 2')
         assert result == {"a": 1}
 
@@ -145,8 +145,7 @@ class TestTrimBackRecovery:
         assert result == [{"a": 1}]
 
     def test_between_objects_mid_key(self):
-        # Strategy 3 (salvage complete objects) catches this before trim-back,
-        # recovering the first complete object inside the array.
+        # Strategy 2 ({...} boundary search) extracts the first complete object.
         result = _call_chat_json('[{"a":1},{"b":2,"c')
         assert result == {"a": 1}
 

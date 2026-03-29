@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 import pytest
+import requests
 
 from engine.news import (
     fetch_gdelt_articles,
@@ -129,7 +130,49 @@ class TestFetchGdeltArticles:
 
     @patch("engine.news.requests.get")
     def test_handles_failed_keyword(self, mock_get):
-        mock_get.side_effect = Exception("Network error")
+        mock_get.side_effect = requests.RequestException("Network error")
+
+        articles = fetch_gdelt_articles(
+            ["test"], datetime(2025, 6, 1), datetime(2025, 6, 30)
+        )
+        assert articles == []
+
+    @patch("engine.news.requests.get")
+    def test_handles_json_decode_error(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status = MagicMock()
+        mock_resp.json.side_effect = ValueError("No JSON object could be decoded")
+        mock_get.return_value = mock_resp
+
+        articles = fetch_gdelt_articles(
+            ["test"], datetime(2025, 6, 1), datetime(2025, 6, 30)
+        )
+        assert articles == []
+
+    @patch("engine.news.requests.get")
+    def test_partial_keyword_failure(self, mock_get):
+        success_resp = MagicMock()
+        success_resp.json.return_value = self.GDELT_RESPONSE
+        success_resp.raise_for_status = MagicMock()
+
+        mock_get.side_effect = [
+            requests.RequestException("Network error"),
+            success_resp,
+        ]
+
+        articles = fetch_gdelt_articles(
+            ["failing keyword", "working keyword"],
+            datetime(2025, 6, 1, tzinfo=timezone.utc),
+            datetime(2025, 6, 30, tzinfo=timezone.utc),
+        )
+        assert len(articles) == 2
+        assert articles[0]["title"] == "Tech regulation tightens"
+
+    @patch("engine.news.requests.get")
+    def test_handles_http_error(self, mock_get):
+        mock_resp = MagicMock()
+        mock_resp.raise_for_status.side_effect = requests.HTTPError("500 Server Error")
+        mock_get.return_value = mock_resp
 
         articles = fetch_gdelt_articles(
             ["test"], datetime(2025, 6, 1), datetime(2025, 6, 30)

@@ -3,10 +3,45 @@ import streamlit as st
 import plotly.express as px
 import plotly.graph_objects as go
 import pandas as pd
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 from config import DOMAINS
 from data.store import load_signals
+
+# ── Constants ─────────────────────────────────────────────────────────────────
+MIN_DATA_POINTS = 3          # Topics with ≤ this many data points are hidden
+BADGE_YELLOW_THRESHOLD = 5   # article count ≥ this → yellow badge
+BADGE_RED_THRESHOLD = 10     # article count ≥ this → red badge
+
+
+def _build_chart_figure(agg_df):
+    """Build Plotly figure from aggregated signal dataframe."""
+    _palette = list(px.colors.qualitative.Alphabet) + list(px.colors.qualitative.Dark24)
+    sorted_topics = sorted(agg_df["topic"].unique())
+    topic_color = {t: _palette[i % len(_palette)] for i, t in enumerate(sorted_topics)}
+
+    fig = go.Figure()
+    for topic in sorted_topics:
+        topic_df = agg_df[agg_df["topic"] == topic].sort_values("date")
+        fig.add_trace(go.Scatter(
+            x=topic_df["date"],
+            y=topic_df["strength_score"],
+            mode="lines+markers",
+            name=topic,
+            marker=dict(color=topic_color[topic]),
+            line=dict(color=topic_color[topic]),
+            hovertemplate="<b>%{x}</b><br>%{y} articles<extra>%{fullData.name}</extra>",
+        ))
+
+    fig.update_layout(
+        yaxis=dict(title="# of articles"),
+        xaxis=dict(title="Date", tickformat="%Y-%m-%d"),
+        height=500,
+        margin=dict(l=40, r=40, t=30, b=40),
+        showlegend=False,
+    )
+    return fig
+
 
 st.set_page_config(page_title="TrendMill", page_icon="🏃‍♀️💨", layout="wide")
 
@@ -80,16 +115,20 @@ if backfill_clicked:
         st.error("OPENROUTER_API_KEY not set. Add it to your .env file.")
         st.stop()
 
+    if backfill_start >= backfill_end:
+        st.error("Start date must be before end date.")
+        st.stop()
+
     with st.status("Running historical backfill...", expanded=True) as status:
         from engine.scanner import backfill_signals
 
-        bf_start_dt = datetime.combine(backfill_start, datetime.min.time())
-        bf_end_dt = datetime.combine(backfill_end, datetime.min.time())
+        bf_start_dt = datetime.combine(backfill_start, datetime.min.time(), tzinfo=timezone.utc)
+        bf_end_dt = datetime.combine(backfill_end + timedelta(days=1), datetime.min.time(), tzinfo=timezone.utc)
 
         progress_bar = st.progress(0)
 
         def _on_backfill_progress(window_index, total_windows, label):
-            pct = window_index / total_windows
+            pct = (window_index + 1) / total_windows
             progress_bar.progress(
                 pct,
                 text=f"Window {window_index + 1}/{total_windows}: {label}",
@@ -126,8 +165,7 @@ if signals:
     rows = []
     for s in signals:
         if s.topic:
-            d = s.model_dump()
-            rows.append(d)
+            rows.append(s.model_dump())
     df = pd.DataFrame(rows)
 
     if not df.empty:
@@ -139,7 +177,7 @@ if signals:
 
         # Filter topics with >3 data points
         topic_counts = agg.groupby("topic")["date"].count()
-        valid_topics = topic_counts[topic_counts > 3].index
+        valid_topics = topic_counts[topic_counts > MIN_DATA_POINTS].index
         agg = agg[agg["topic"].isin(valid_topics)]
 
         # Topic filter — only offer topics that survived the >3 filter
@@ -155,32 +193,7 @@ if signals:
         agg = agg[agg["topic"].isin(selected_topics)]
 
         if not agg.empty:
-            fig = go.Figure()
-
-            # Build a palette with 50 distinct colors
-            _palette = list(px.colors.qualitative.Alphabet) + list(px.colors.qualitative.Dark24)
-            sorted_topics = sorted(agg["topic"].unique())
-            topic_color = {t: _palette[i % len(_palette)] for i, t in enumerate(sorted_topics)}
-
-            for topic in sorted_topics:
-                topic_df = agg[agg["topic"] == topic].sort_values("date")
-                fig.add_trace(go.Scatter(
-                    x=topic_df["date"],
-                    y=topic_df["strength_score"],
-                    mode="lines+markers",
-                    name=topic,
-                    marker=dict(color=topic_color[topic]),
-                    line=dict(color=topic_color[topic]),
-                    hovertemplate="<b>%{x}</b><br>%{y} articles<extra>%{fullData.name}</extra>",
-                ))
-
-            fig.update_layout(
-                yaxis=dict(title="# of articles"),
-                xaxis=dict(title="Date", tickformat="%Y-%m-%d"),
-                height=500,
-                margin=dict(l=40, r=40, t=30, b=40),
-                showlegend=False,
-            )
+            fig = _build_chart_figure(agg)
             st.plotly_chart(fig, use_container_width=True)
         else:
             st.info("No signals match the selected topics.")
@@ -200,59 +213,63 @@ if signals:
 
     topic_options = sorted(topics_with_counts.keys())
 
-    selected_topic = st.selectbox(
-        "Select a topic to view all signals and sources",
-        topic_options,
-        format_func=lambda t: f"{t} ({topics_with_counts[t]} signals)",
-        key="topic_drilldown",
-    )
-
-    # Filter signals for this topic
-    topic_signals = [s for s in signals if s.topic == selected_topic]
-    topic_signals.sort(key=lambda s: s.timestamp, reverse=True)
-
-    if topic_signals:
-        # Show broad themes this topic spans
-        all_cats = set()
-        for s in topic_signals:
-            all_cats.update(s.categories)
-        st.markdown(f"**{len(topic_signals)} signals** — Themes: _{', '.join(sorted(all_cats))}_")
-
-        for signal in topic_signals:
-            if signal.strength_score >= 10:
-                badge = "🔴"
-            elif signal.strength_score >= 5:
-                badge = "🟡"
-            else:
-                badge = "🟢"
-
-            with st.expander(
-                f"{badge} {signal.title} — "
-                f"{signal.timestamp.strftime('%Y-%m-%d')}"
-            ):
-                st.markdown(signal.description)
-
-                if signal.source_quote:
-                    st.markdown(f"> _{signal.source_quote}_")
-
-                # Source link
-                source_name = ", ".join(signal.sources) if signal.sources else "Unknown"
-                if signal.source_url:
-                    st.markdown(f"**Primary source:** [{source_name}]({signal.source_url})")
-
-                # All related articles
-                if signal.source_articles:
-                    st.markdown("**All related coverage:**")
-                    for article in signal.source_articles:
-                        if article.url:
-                            st.markdown(f"- [{article.title}]({article.url}) — _{article.source}_")
-                        else:
-                            st.markdown(f"- {article.title} — _{article.source}_")
-
-
-                if len(signal.categories) > 1:
-                    st.caption(f"Themes: {', '.join(signal.categories)}")
+    if not topic_options:
+        st.info("No signals with assigned topics yet.")
     else:
-        st.info(f"No signals for _{selected_topic}_ yet.")
+        selected_topic = st.selectbox(
+            "Select a topic to view all signals and sources",
+            topic_options,
+            format_func=lambda t: f"{t} ({topics_with_counts[t]} signals)",
+            key="topic_drilldown",
+        )
+
+        # Filter signals for this topic
+        topic_signals = [s for s in signals if s.topic == selected_topic]
+        topic_signals.sort(key=lambda s: s.timestamp, reverse=True)
+
+        if topic_signals:
+            # Show broad themes this topic spans
+            all_cats = set()
+            for s in topic_signals:
+                all_cats.update(s.categories)
+            theme_text = f" — Themes: _{', '.join(sorted(all_cats))}_" if all_cats else ""
+            st.markdown(f"**{len(topic_signals)} signals**{theme_text}")
+
+            for signal in topic_signals:
+                if signal.strength_score >= BADGE_RED_THRESHOLD:
+                    badge = "🔴"
+                elif signal.strength_score >= BADGE_YELLOW_THRESHOLD:
+                    badge = "🟡"
+                else:
+                    badge = "🟢"
+
+                with st.expander(
+                    f"{badge} {signal.title} — "
+                    f"{signal.timestamp.strftime('%Y-%m-%d')}"
+                ):
+                    st.markdown(signal.description)
+
+                    if signal.source_quote:
+                        st.markdown(f"> _{signal.source_quote}_")
+
+                    # Source link
+                    source_name = ", ".join(signal.sources) if signal.sources else "Unknown"
+                    if signal.source_url:
+                        st.markdown(f"**Primary source:** [{source_name}]({signal.source_url})")
+
+                    # All related articles
+                    if signal.source_articles:
+                        st.markdown("**All related coverage:**")
+                        for article in signal.source_articles:
+                            if article.url:
+                                st.markdown(f"- [{article.title}]({article.url}) — _{article.source}_")
+                            else:
+                                st.markdown(f"- {article.title} — _{article.source}_")
+
+
+                    if len(signal.categories) > 1:
+                        st.caption(f"Themes: {', '.join(signal.categories)}")
+        else:
+            st.info(f"No signals for _{selected_topic}_ yet.")
 else:
     st.info("No signals yet.")

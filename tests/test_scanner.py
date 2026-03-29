@@ -93,6 +93,46 @@ class TestParseSignals:
         signals = _parse_signals(data, config)
         assert signals[0].categories == ["Privacy"]
 
+    def test_parse_skips_non_dict_items(self, config):
+        data = [
+            {"topic": "valid", "title": "t", "description": "d",
+             "categories": ["Privacy"]},
+            "string item",
+            None,
+            42,
+        ]
+        signals = _parse_signals(data, config)
+        assert len(signals) == 1
+        assert signals[0].topic == "valid"
+
+    def test_parse_skips_non_dict_related_articles(self, config):
+        data = [
+            {"topic": "t", "title": "t", "description": "d",
+             "categories": ["Privacy"],
+             "related_articles": [
+                 {"title": "Good", "url": "https://example.com", "source": "Reuters"},
+                 "bad",
+                 None,
+             ]},
+        ]
+        signals = _parse_signals(data, config)
+        assert len(signals[0].source_articles) == 1
+        assert signals[0].source_articles[0].title == "Good"
+
+    def test_empty_categories_list_fallback(self, config):
+        data = [{"topic": "t", "title": "t", "description": "d", "categories": []}]
+        signals = _parse_signals(data, config)
+        assert len(signals) == 1
+        assert signals[0].categories == ["Antitrust"]
+
+    def test_parse_dict_without_signals_key(self, config):
+        data = {"topic": "X", "title": "Y", "description": "d",
+                "categories": ["Privacy"]}
+        signals = _parse_signals(data, config)
+        assert len(signals) == 1
+        assert signals[0].topic == "X"
+        assert signals[0].title == "Y"
+
 
 class TestDetectSignals:
     @patch("engine.scanner.chat_json")
@@ -123,8 +163,7 @@ class TestDetectSignals:
 
         mock_chat.side_effect = side_effect
 
-        with patch("engine.scanner.st", create=True):
-            signals = detect_signals(config, articles=SAMPLE_ARTICLES)
+        signals = detect_signals(config, articles=SAMPLE_ARTICLES)
         # First batch fails, but other batches succeed
         assert len(signals) >= 1
 
@@ -136,7 +175,7 @@ class TestDetectSignals:
         ]
         on_start = MagicMock()
         on_end = MagicMock()
-        detect_signals(config, articles=SAMPLE_ARTICLES, on_batch_start=on_start, on_batch_end=on_end)
+        detect_signals(config, articles=SAMPLE_ARTICLES, on_category_start=on_start, on_category_end=on_end)
         assert on_start.call_count == len(config.categories)
         assert on_end.call_count == len(config.categories)
         # First call should be (0, total_batches, [first_category])
@@ -164,6 +203,13 @@ class TestDetectSignals:
             categories=[], detection_prompt="",
         )
         result = detect_signals(empty_config, articles=[])
+        assert result == []
+        mock_chat.assert_not_called()
+
+    @patch("engine.scanner.chat_json")
+    @patch("engine.scanner.get_existing_topics", return_value=set())
+    def test_empty_articles_returns_early(self, mock_topics, mock_chat, config):
+        result = detect_signals(config, articles=[])
         assert result == []
         mock_chat.assert_not_called()
 
@@ -289,3 +335,48 @@ class TestBackfillSignals:
         mock_append.assert_called()
         appended = mock_append.call_args[0][1]
         assert appended[0].strength_score == 8
+
+    @patch("engine.scanner.append_signals")
+    @patch("engine.scanner.score_signals", side_effect=lambda s: s)
+    @patch("engine.scanner.detect_signals")
+    @patch("engine.scanner.fetch_gdelt_articles")
+    def test_timestamps_set_to_window_midpoint(self, mock_gdelt, mock_detect, mock_score, mock_append, config):
+        mock_gdelt.return_value = [
+            {"title": "T", "source": "s", "link": "", "description": "", "published": ""},
+        ]
+        mock_detect.return_value = [
+            Signal(domain="Test Domain", topic="t", categories=["Antitrust"],
+                   title="t", description="d", strength_score=5,
+                   reasoning="r", sources=["s"]),
+        ]
+
+        start = datetime(2025, 1, 1)
+        end = datetime(2025, 4, 1)
+        backfill_signals(config, start, end)
+
+        mock_append.assert_called()
+        appended = mock_append.call_args[0][1]
+        expected_midpoint = start + (end - start) / 2
+        assert appended[0].timestamp == expected_midpoint
+
+
+    def test_backfill_rejects_inverted_dates(self, config):
+        with pytest.raises(ValueError, match="start_date must be before end_date"):
+            backfill_signals(config, datetime(2025, 6, 1), datetime(2025, 1, 1))
+
+
+class TestDomainConfig:
+    def test_keywords_must_be_list(self):
+        with pytest.raises(TypeError, match="keywords must be a list"):
+            DomainConfig(
+                name="Test", persona="A", description="T",
+                categories=[], detection_prompt="",
+                keywords="not a list",
+            )
+
+    def test_keywords_default_to_empty_list(self):
+        cfg = DomainConfig(
+            name="Test", persona="A", description="T",
+            categories=[], detection_prompt="",
+        )
+        assert cfg.keywords == []

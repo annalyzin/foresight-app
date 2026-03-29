@@ -93,8 +93,6 @@ def chat(
                     on_retry(attempt + 1, MAX_RETRIES, error_msg)
                 time.sleep(wait)
 
-    if last_error is None:
-        raise RuntimeError("LLM chat() called with MAX_RETRIES=0")
     raise last_error
 
 
@@ -257,7 +255,7 @@ def chat_json(
             result = json.loads(repaired)
             logging.warning("Recovered truncated JSON by trimming at position %d", pos)
             return result
-        except Exception:
+        except (json.JSONDecodeError, ValueError):
             continue
 
     raise ValueError(f"Could not parse JSON from LLM response: {text[:300]}")

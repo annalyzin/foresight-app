@@ -1,12 +1,16 @@
 from __future__ import annotations
 
+import json
 import logging
+import traceback
 from datetime import datetime, timedelta
 from typing import Callable, List, Optional
 
 from config.base import DomainConfig
 from data.models import Signal, SourceArticle
 from data.store import append_signals, get_existing_topics
+from openai import APIError
+
 from engine.llm import chat_json, sanitize_error
 from engine.news import fetch_gdelt_articles, format_articles_for_llm
 from engine.scorer import score_signals
@@ -22,6 +26,8 @@ def _parse_signals(results, config: DomainConfig) -> List[Signal]:
 
     signals = []
     for r in results:
+        if not isinstance(r, dict):
+            continue
         categories = r.get("categories", [])
         if not categories:
             cat = r.get("category", config.categories[0])
@@ -32,6 +38,8 @@ def _parse_signals(results, config: DomainConfig) -> List[Signal]:
 
         source_articles = []
         for ra in r.get("related_articles", []):
+            if not isinstance(ra, dict):
+                continue
             source_articles.append(SourceArticle(
                 title=ra.get("title", ""),
                 url=ra.get("url", ""),
@@ -59,8 +67,8 @@ def _parse_signals(results, config: DomainConfig) -> List[Signal]:
 def detect_signals(
     config: DomainConfig,
     articles: List[dict],
-    on_batch_start: Optional[Callable[[int, int, List[str]], None]] = None,
-    on_batch_end: Optional[Callable[[int, int, List[str], Optional[str]], None]] = None,
+    on_category_start: Optional[Callable[[int, int, List[str]], None]] = None,
+    on_category_end: Optional[Callable[[int, int, List[str], Optional[str]], None]] = None,
     on_retry: Optional[Callable[[int, int, List[str], int, int, str], None]] = None,
 ) -> List[Signal]:
     """Use LLM to detect emerging signals with topic labels.
@@ -68,13 +76,16 @@ def detect_signals(
     Args:
         config: Domain configuration.
         articles: Pre-fetched articles to analyze.
-        on_batch_start: Called before each batch with
-            (batch_index, total_batches, batch_categories).
-        on_batch_end: Called after each batch with
-            (batch_index, total_batches, batch_categories, error_message_or_None).
+        on_category_start: Called before each category with
+            (category_index, total_categories, category_list).
+        on_category_end: Called after each category with
+            (category_index, total_categories, category_list, error_message_or_None).
         on_retry: Called before each LLM retry with
-            (batch_index, total_batches, batch_categories, attempt, max_retries, error_msg).
+            (batch_index, total_batches, category_list, attempt, max_retries, error_msg).
     """
+    if not articles:
+        return []
+
     articles_text = format_articles_for_llm(articles)
 
     # Load existing topics to inject into prompt for consistency
@@ -90,30 +101,40 @@ def detect_signals(
     total_batches = len(config.categories)
 
     for batch_index, category in enumerate(config.categories):
-        batch_categories = [category]
+        # Single-element list to match the prompt's {categories} format
+        category_list = [category]
 
-        if on_batch_start:
-            on_batch_start(batch_index, total_batches, batch_categories)
+        if on_category_start:
+            on_category_start(batch_index, total_batches, category_list)
 
         try:
             batch_prompt = config.detection_prompt.format(
-                categories=", ".join(batch_categories),
+                categories=", ".join(category_list),
                 existing_topics=topics_str,
                 articles=articles_text,
             )
             def _on_llm_retry(attempt, max_retries, error_msg):
                 if on_retry:
-                    on_retry(batch_index, total_batches, batch_categories, attempt, max_retries, error_msg)
+                    on_retry(batch_index, total_batches, category_list, attempt, max_retries, error_msg)
 
             results = chat_json(batch_prompt, max_tokens=32768, on_retry=_on_llm_retry)
             all_signals.extend(_parse_signals(results, config))
-            if on_batch_end:
-                on_batch_end(batch_index, total_batches, batch_categories, None)
+            if on_category_end:
+                on_category_end(batch_index, total_batches, category_list, None)
+        except (APIError, ValueError, json.JSONDecodeError) as e:
+            error_msg = sanitize_error(e)
+            logging.warning("Category %s failed: %s", category_list, error_msg)
+            if on_category_end:
+                on_category_end(batch_index, total_batches, category_list, error_msg)
+            continue
         except Exception as e:
             error_msg = sanitize_error(e)
-            logging.warning("Batch %s failed: %s", batch_categories, error_msg)
-            if on_batch_end:
-                on_batch_end(batch_index, total_batches, batch_categories, error_msg)
+            logging.error(
+                "Category %s failed with unexpected error: %s\n%s",
+                category_list, error_msg, traceback.format_exc(),
+            )
+            if on_category_end:
+                on_category_end(batch_index, total_batches, category_list, error_msg)
             continue
 
     return all_signals
@@ -151,6 +172,8 @@ def backfill_signals(
     Returns:
         Total number of new signals detected.
     """
+    if start_date >= end_date:
+        raise ValueError("start_date must be before end_date")
     windows = _build_windows(start_date, end_date)
     total_windows = len(windows)
     total_signals = 0
@@ -166,10 +189,9 @@ def backfill_signals(
 
         signals = detect_signals(config, articles=articles)
 
-        # Override timestamps to reflect the window's midpoint
+        # Set timestamps to reflect the window's midpoint (copy to avoid mutating originals)
         midpoint = win_start + (win_end - win_start) / 2
-        for s in signals:
-            s.timestamp = midpoint
+        signals = [s.model_copy(update={"timestamp": midpoint}) for s in signals]
 
         if signals:
             signals = score_signals(signals)

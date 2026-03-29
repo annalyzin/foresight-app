@@ -10,6 +10,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Set
 
+from pydantic import ValidationError
+
 from data.models import Signal
 
 SIGNALS_DIR = Path(__file__).resolve().parent.parent / "signals"
@@ -86,7 +88,7 @@ def load_signals(domain: str) -> List[Signal]:
         return []
     try:
         return [Signal(**item) for item in data]
-    except Exception as e:
+    except (ValidationError, TypeError) as e:
         logging.warning("Invalid signal data in %s: %s — returning empty list", path, e)
         return []
 
@@ -108,23 +110,28 @@ def save_signals(domain: str, signals: List[Signal]):
             pass  # already closed by os.fdopen/with
         raise
     finally:
-        if os.path.exists(tmp):
+        try:
             os.unlink(tmp)
+        except FileNotFoundError:
+            pass
 
 
 def append_signals(domain: str, new_signals: List[Signal]):
     existing = load_signals(domain)
     existing_topics = {s.topic for s in existing if s.topic}
 
-    # Remap near-duplicate topics to existing labels
+    # Remap near-duplicate topics on copies to avoid mutating caller's objects
+    copies = []
     for s in new_signals:
-        if s.topic:
-            merged = _merge_topic(s.topic, existing_topics)
-            s.topic = merged
+        s_copy = s.model_copy()
+        if s_copy.topic:
+            merged = _merge_topic(s_copy.topic, existing_topics)
+            s_copy.topic = merged
             existing_topics.add(merged)
+        copies.append(s_copy)
 
-    seen = {(s.topic, s.title) for s in existing}
-    unique_new = [s for s in new_signals if (s.topic, s.title) not in seen]
+    seen = {(s.topic, s.title.lower()) for s in existing}
+    unique_new = [s for s in copies if (s.topic, s.title.lower()) not in seen]
     existing.extend(unique_new)
     save_signals(domain, existing)
 

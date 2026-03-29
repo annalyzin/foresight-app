@@ -97,6 +97,14 @@ class TestStore:
         topics = get_existing_topics("Test")
         assert topics == {"Real topic"}
 
+    def test_append_dedup_is_case_insensitive(self, signals_dir, make_signal):
+        s1 = make_signal(topic="Topic", title="Signal Title")
+        save_signals("Test", [s1])
+        s2 = make_signal(topic="Topic", title="signal title")
+        append_signals("Test", [s2])
+        loaded = load_signals("Test")
+        assert len(loaded) == 1
+
     def test_signals_path_slugification(self):
         path = _signals_path("Big Tech & AI Policy!")
         assert path.name == "big_tech___ai_policy__signals.json"

@@ -64,3 +64,15 @@ class TestScoreSignal:
     def test_singular_article_reasoning(self, make_signal):
         s = score_signal(make_signal(articles=[("a1", "Reuters")]))
         assert "1 related article" in s.reasoning
+
+    def test_plural_articles_reasoning(self, make_signal):
+        s = score_signal(make_signal(articles=[("a1", "Reuters"), ("a2", "BBC")]))
+        assert "2 related articles" in s.reasoning
+
+    def test_score_signal_does_not_mutate_original(self, make_signal):
+        original = make_signal(articles=[("a1", "Reuters")])
+        original_score = original.strength_score
+        original_reasoning = original.reasoning
+        score_signal(original)
+        assert original.strength_score == original_score
+        assert original.reasoning == original_reasoning

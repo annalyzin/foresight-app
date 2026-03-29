@@ -50,7 +50,7 @@ Set in `.env`:
 ## Key conventions
 
 - Private functions prefixed with `_`
-- Callbacks (`on_batch_start`, `on_batch_end`, `on_retry`, `on_progress`) for progress feedback
+- Callbacks (`on_category_start`, `on_category_end`, `on_retry`, `on_progress`) for progress feedback
 - Topic deduplication uses SequenceMatcher + Jaccard similarity
 - Atomic file writes (temp file + rename) in store.py
 - Signal IDs are 12-char hex (truncated UUID4)
