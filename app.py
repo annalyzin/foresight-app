@@ -69,8 +69,9 @@ they become mainstream.
   media attention; a spike may indicate a breaking development. Topics with 3 or
   fewer data points are hidden to reduce noise. Use the **Filter by topic**
   dropdown to focus on specific topics.
-- **Topic Drill-Down** — Select any topic to see every signal detected for it,
-  sorted newest-first. Each signal is color-coded by article count:
+- **Topic Drill-Down** — Shows only topics selected in the **Filter by topic**
+  dropdown above. Pick a topic to see every signal detected for it, sorted
+  newest-first. Each signal is color-coded by article count:
   🟢 under 5, 🟡 5–9, 🔴 10+. Expand a signal to read its description,
   key quotes, and links to all related articles.
 """)
@@ -204,6 +205,10 @@ else:
 
 # ── Topic Drill-Down ─────────────────────────────────────────────────────────
 st.header("Topic Drill-Down")
+st.caption(
+    "Showing sub-topics within the topics selected in the filter above. "
+    "Pick a sub-topic to view all signals and source articles."
+)
 
 if signals:
     topics_with_counts = {}
@@ -213,11 +218,16 @@ if signals:
 
     topic_options = sorted(topics_with_counts.keys())
 
+    # Respect the chart's "Filter by topic" selection
+    chart_filter = st.session_state.get("topic_filter")
+    if chart_filter is not None:
+        topic_options = [t for t in topic_options if t in chart_filter]
+
     if not topic_options:
         st.info("No signals with assigned topics yet.")
     else:
         selected_topic = st.selectbox(
-            "Select a topic to view all signals and sources",
+            "Select a sub-topic to view all signals and sources",
             topic_options,
             format_func=lambda t: f"{t} ({topics_with_counts[t]} signals)",
             key="topic_drilldown",

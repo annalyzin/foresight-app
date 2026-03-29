@@ -47,6 +47,16 @@ def _parse_signals(results, config: DomainConfig) -> List[Signal]:
                 description=ra.get("description", ""),
             ))
 
+        # Deduplicate articles by URL (or title if no URL)
+        seen = set()
+        unique_articles = []
+        for sa in source_articles:
+            key = sa.url if sa.url else sa.title
+            if key and key not in seen:
+                seen.add(key)
+                unique_articles.append(sa)
+        source_articles = unique_articles
+
         signals.append(Signal(
             domain=config.name,
             topic=r.get("topic", ""),
