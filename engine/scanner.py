@@ -199,9 +199,25 @@ def backfill_signals(
 
         signals = detect_signals(config, articles=articles)
 
-        # Set timestamps to reflect the window's midpoint (copy to avoid mutating originals)
+        # Resolve per-signal timestamps from actual article publication dates
+        pub_dates = {}
+        for a in articles:
+            if a.get("published"):
+                try:
+                    pub_dates[a["title"]] = datetime.fromisoformat(a["published"])
+                except (ValueError, TypeError):
+                    pass
+
         midpoint = win_start + (win_end - win_start) / 2
-        signals = [s.model_copy(update={"timestamp": midpoint}) for s in signals]
+
+        resolved = []
+        for s in signals:
+            article_dates = [
+                pub_dates[sa.title] for sa in s.source_articles if sa.title in pub_dates
+            ]
+            timestamp = max(article_dates) if article_dates else midpoint
+            resolved.append(s.model_copy(update={"timestamp": timestamp}))
+        signals = resolved
 
         if signals:
             signals = score_signals(signals)

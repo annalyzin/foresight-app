@@ -93,10 +93,10 @@ with st.sidebar:
         st.subheader("Historical Backfill")
         st.caption("Fetch historical articles from GDELT")
         today = datetime.today().date()
-        three_years_ago = today - timedelta(days=3 * 365)
+        one_year_ago = today - timedelta(days=365)
         backfill_cols = st.columns(2)
         with backfill_cols[0]:
-            backfill_start = st.date_input("From", value=three_years_ago, key="bf_start")
+            backfill_start = st.date_input("From", value=one_year_ago, key="bf_start")
         with backfill_cols[1]:
             backfill_end = st.date_input("To", value=today, key="bf_end")
         backfill_clicked = st.button("📚 Backfill", use_container_width=True)
